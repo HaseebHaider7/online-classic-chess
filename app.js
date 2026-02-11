@@ -26,9 +26,12 @@
   const boardEl = document.getElementById('board');
   const nameInput = document.getElementById('nameInput');
   const roomInput = document.getElementById('roomInput');
+  const modeSelect = document.getElementById('modeSelect');
   const colorSelect = document.getElementById('colorSelect');
   const joinBtn = document.getElementById('joinBtn');
   const newGameBtn = document.getElementById('newGameBtn');
+  const refreshRoomsBtn = document.getElementById('refreshRoomsBtn');
+  const roomsList = document.getElementById('roomsList');
 
   const turnText = document.getElementById('turnText');
   const stateText = document.getElementById('stateText');
@@ -43,26 +46,39 @@
   const app = {
     roomId: null,
     side: null,
+    mode: 'pvp',
     turn: 'w',
     fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
     selected: null,
     legalMoves: [],
     pendingTarget: null,
     connected: false,
-    status: 'Not connected'
+    challengeRooms: [],
+    viewSide: 'w'
   };
 
   joinBtn.addEventListener('click', () => {
     const roomId = roomInput.value.trim();
     const name = nameInput.value.trim() || 'Guest';
-    const pref = colorSelect.value;
-    errorText.textContent = '';
+    const preferredSide = colorSelect.value;
+    const mode = modeSelect.value;
 
+    if (!roomId) {
+      errorText.textContent = 'Please enter a room code.';
+      return;
+    }
+
+    errorText.textContent = '';
     socket.emit('joinRoom', {
       roomId,
       name,
-      preferredSide: pref === 'auto' ? null : pref
+      preferredSide,
+      mode
     });
+  });
+
+  refreshRoomsBtn.addEventListener('click', () => {
+    socket.emit('getRoomList');
   });
 
   newGameBtn.addEventListener('click', () => {
@@ -73,6 +89,7 @@
   socket.on('connect', () => {
     app.connected = true;
     stateText.textContent = 'Connected. Join a room.';
+    socket.emit('getRoomList');
   });
 
   socket.on('disconnect', () => {
@@ -80,26 +97,38 @@
     stateText.textContent = 'Disconnected from server.';
   });
 
-  socket.on('joined', ({ roomId, side }) => {
+  socket.on('joined', ({ roomId, side, mode }) => {
     app.roomId = roomId;
     app.side = side;
+    app.mode = mode;
+    app.viewSide = side === 'b' ? 'b' : 'w';
+
     roomText.textContent = `Room: ${roomId}`;
-    roleText.textContent = `Role: ${toRoleLabel(side)}`;
+    roleText.textContent = `Role: ${toRoleLabel(side)} | Mode: ${mode.toUpperCase()}`;
     errorText.textContent = '';
+    drawBoard();
   });
 
   socket.on('gameState', (state) => {
     app.fen = state.fen;
     app.turn = state.turn;
-    app.status = state.status;
-    app.selected = null;
-    app.legalMoves = [];
+    app.mode = state.mode;
+
+    if (app.side === 'b') app.viewSide = 'b';
+    else if (app.side === 'w') app.viewSide = 'w';
 
     turnText.textContent = `Turn: ${state.turn === 'w' ? 'White' : 'Black'}`;
     stateText.textContent = state.status;
-    ruleText.textContent = `White: ${state.players.white} | Black: ${state.players.black} | Spectators: ${state.spectators}`;
+    ruleText.textContent = `White: ${state.players.white} (${state.playerTypes.white}) | Black: ${state.players.black} (${state.playerTypes.black}) | Spectators: ${state.spectators}`;
 
+    app.selected = null;
+    app.legalMoves = [];
     drawBoard();
+  });
+
+  socket.on('roomList', (rooms) => {
+    app.challengeRooms = Array.isArray(rooms) ? rooms : [];
+    drawRoomList();
   });
 
   socket.on('legalMoves', ({ from, moves }) => {
@@ -112,16 +141,62 @@
     errorText.textContent = msg;
   });
 
+  function drawRoomList() {
+    roomsList.innerHTML = '';
+
+    if (!app.challengeRooms.length) {
+      const empty = document.createElement('p');
+      empty.className = 'rooms-empty';
+      empty.textContent = 'No AI rooms available to challenge right now.';
+      roomsList.appendChild(empty);
+      return;
+    }
+
+    for (const room of app.challengeRooms) {
+      const card = document.createElement('div');
+      card.className = 'room-card';
+
+      const info = document.createElement('div');
+      info.className = 'room-card-info';
+      info.innerHTML = `<strong>${escapeHtml(room.roomId)}</strong><span>Host: ${escapeHtml(room.host)} | Open: ${room.openSide === 'w' ? 'White' : 'Black'}</span>`;
+
+      const btn = document.createElement('button');
+      btn.className = 'small-btn';
+      btn.textContent = 'Join as Opponent';
+      btn.addEventListener('click', () => {
+        const name = nameInput.value.trim() || 'Guest';
+        const preferredSide = colorSelect.value;
+
+        socket.emit('joinRoom', {
+          roomId: room.roomId,
+          name,
+          preferredSide,
+          mode: 'ai'
+        });
+      });
+
+      card.appendChild(info);
+      card.appendChild(btn);
+      roomsList.appendChild(card);
+    }
+  }
+
   function drawBoard() {
     boardEl.innerHTML = '';
     const pieceBySquare = parseFenPieces(app.fen);
 
-    for (let rank = 8; rank >= 1; rank -= 1) {
-      for (let fileIdx = 0; fileIdx < 8; fileIdx += 1) {
-        const file = files[fileIdx];
+    const rankOrder = app.viewSide === 'b'
+      ? [1, 2, 3, 4, 5, 6, 7, 8]
+      : [8, 7, 6, 5, 4, 3, 2, 1];
+    const fileOrder = app.viewSide === 'b'
+      ? ['h', 'g', 'f', 'e', 'd', 'c', 'b', 'a']
+      : ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
+
+    for (let row = 0; row < 8; row += 1) {
+      const rank = rankOrder[row];
+      for (let col = 0; col < 8; col += 1) {
+        const file = fileOrder[col];
         const squareName = `${file}${rank}`;
-        const row = 8 - rank;
-        const col = fileIdx;
 
         const square = document.createElement('button');
         square.className = `square ${(row + col) % 2 === 0 ? 'light' : 'dark'}`;
@@ -133,11 +208,21 @@
 
         const legal = app.legalMoves.find((m) => m.to === squareName);
         if (legal) {
-          if (legal.flags.includes('c') || legal.flags.includes('e')) {
-            square.classList.add('capture');
-          } else {
-            square.classList.add('legal');
-          }
+          square.classList.add(legal.flags.includes('c') || legal.flags.includes('e') ? 'capture' : 'legal');
+        }
+
+        if (row === 7) {
+          const fileTag = document.createElement('span');
+          fileTag.className = 'coord coord-file';
+          fileTag.textContent = file;
+          square.appendChild(fileTag);
+        }
+
+        if (col === 0) {
+          const rankTag = document.createElement('span');
+          rankTag.className = 'coord coord-rank';
+          rankTag.textContent = String(rank);
+          square.appendChild(rankTag);
         }
 
         const piece = pieceBySquare.get(squareName);
@@ -184,10 +269,12 @@
 
   function needsPromotion(toSquare) {
     if (!app.selected) return false;
-    const fromRank = Number(app.selected[1]);
-    const toRank = Number(toSquare[1]);
+
+    const fromRank = Number(app.selected.slice(1));
+    const toRank = Number(toSquare.slice(1));
     const pieceBySquare = parseFenPieces(app.fen);
     const piece = pieceBySquare.get(app.selected);
+
     if (!piece || piece[1] !== 'P') return false;
     return (piece[0] === 'w' && fromRank === 7 && toRank === 8) || (piece[0] === 'b' && fromRank === 2 && toRank === 1);
   }
@@ -230,14 +317,17 @@
   function parseFenPieces(fen) {
     const map = new Map();
     const rows = fen.split(' ')[0].split('/');
+
     for (let row = 0; row < 8; row += 1) {
       const rank = 8 - row;
       let fileIdx = 0;
+
       for (const ch of rows[row]) {
         if (/\d/.test(ch)) {
           fileIdx += Number(ch);
           continue;
         }
+
         const color = ch === ch.toUpperCase() ? 'w' : 'b';
         const piece = ch.toUpperCase();
         const sq = `${files[fileIdx]}${rank}`;
@@ -245,6 +335,7 @@
         fileIdx += 1;
       }
     }
+
     return map;
   }
 
@@ -289,5 +380,16 @@
     return wrapper;
   }
 
+  function escapeHtml(value) {
+    return String(value)
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#39;');
+  }
+
+  socket.emit('getRoomList');
+  drawRoomList();
   drawBoard();
 })();

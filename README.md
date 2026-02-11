@@ -1,14 +1,19 @@
 # Online Classic 3D Chess
 
-Room-based online chess where two players can join from different devices and play in real time.
-Extra users in the same room become spectators.
+Room-based online chess where users can choose to play against AI or against another player.
+Players can join from different devices in real time.
 
 ## Features
 
 - Live multiplayer over Socket.IO
+- AI mode with challengeable rooms
 - Room codes (share a room code with friends)
+- Public list of AI rooms so others can request to join as opponent
 - Full legal move validation on server with `chess.js`
 - Classic black/white pieces and 3D-styled board
+- Board coordinates (files/ranks)
+- Color-based board orientation (black side sees black at bottom)
+- Mobile-responsive board layout
 - Spectator support
 
 ## Run Locally
