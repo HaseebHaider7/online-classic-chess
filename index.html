@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Offline 3D Classic Chess</title>
+  <title>Online Classic 3D Chess</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -15,39 +15,45 @@
 
   <main class="app-shell">
     <section class="panel controls">
-      <h1>Classic 3D Chess</h1>http://localhost:8000
+      <h1>Online Classic 3D Chess</h1>
 
       <label class="field">
-        <span>Mode</span>
-        <select id="modeSelect">
-          <option value="single">Single Player (vs AI)</option>
-          <option value="multi">Multiplayer (Local)</option>
-        </select>
+        <span>Your name</span>
+        <input id="nameInput" maxlength="24" placeholder="Player name" />
       </label>
 
-      <label class="field" id="sideField">
-        <span>Your Side (Single Player)</span>
-        <select id="sideSelect">
+      <label class="field">
+        <span>Room code</span>
+        <input id="roomInput" maxlength="24" placeholder="example: friday-match" />
+      </label>
+
+      <label class="field">
+        <span>Color preference</span>
+        <select id="colorSelect">
+          <option value="auto">Auto</option>
           <option value="w">White</option>
           <option value="b">Black</option>
         </select>
       </label>
 
       <div class="button-row">
-        <button id="newGameBtn">New Game</button>
-        <button id="undoBtn">Undo Move</button>
+        <button id="joinBtn">Join Room</button>
+        <button id="newGameBtn">Reset Game</button>
       </div>
 
       <div class="status-block">
         <p id="turnText">Turn: White</p>
-        <p id="stateText">Game in progress</p>
-        <p id="ruleText">No draw condition</p>
+        <p id="stateText">Not connected</p>
+        <p id="ruleText">Join a room to start</p>
+        <p id="roomText">Room: -</p>
+        <p id="roleText">Role: -</p>
       </div>
 
       <div class="legend">
         <h2>Controls</h2>
-        <p>Click a piece, then click destination.</p>
-        <p>Castling, en passant, promotion, checks, checkmate, stalemate, repetition, 50-move and insufficient material are enforced.</p>
+        <p>Join the same room code on different devices to play together.</p>
+        <p>Two players become White and Black. Extra users can spectate.</p>
+        <p id="errorText" class="error-line"></p>
       </div>
     </section>
 
@@ -65,6 +71,7 @@
     </div>
   </div>
 
+  <script src="/socket.io/socket.io.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
