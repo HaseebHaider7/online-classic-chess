@@ -15,6 +15,18 @@ function roomChannel(id) {
   return `room:${id}`;
 }
 
+function sanitizeName(value) {
+  return String(value || 'Guest').trim().slice(0, 24) || 'Guest';
+}
+
+function sanitizeRoomId(value) {
+  return String(value || '').trim().toLowerCase().slice(0, 24);
+}
+
+function makePlayer(name, socketId, isAI = false) {
+  return { name, socketId, isAI };
+}
+
 function statusFrom(chess) {
   if (!chess.isGameOver()) return `${chess.turn() === 'w' ? 'White' : 'Black'} to move`;
   if (chess.isCheckmate()) return `Checkmate. ${chess.turn() === 'w' ? 'Black' : 'White'} wins.`;
@@ -24,104 +36,26 @@ function statusFrom(chess) {
   return 'Draw.';
 }
 
+function generateAiRoomId() {
+  const seed = Math.random().toString(36).slice(2, 8);
+  return `ai-${seed}`;
+}
+
 function sideLabel(side) {
   return side === 'w' ? 'White' : 'Black';
 }
 
-function makePlayer(name, socketId, isAI = false) {
-  return {
-    name,
-    socketId,
-    isAI
-  };
+function countHumanPlayers(room) {
+  let count = 0;
+  if (room.players.w && !room.players.w.isAI) count += 1;
+  if (room.players.b && !room.players.b.isAI) count += 1;
+  return count;
 }
 
-function createRoom(roomId, mode, ownerName, preferredSide, ownerSocketId) {
-  const roomMode = mode === 'ai' ? 'ai' : 'pvp';
-  const ownerSide = preferredSide === 'b' ? 'b' : preferredSide === 'w' ? 'w' : 'w';
-  const aiSide = ownerSide === 'w' ? 'b' : 'w';
-
-  const room = {
-    id: roomId,
-    mode: roomMode,
-    chess: new Chess(),
-    players: {
-      w: null,
-      b: null
-    },
-    spectators: new Set(),
-    aiTimer: null,
-    aiNonce: 0,
-    createdAt: Date.now(),
-    updatedAt: Date.now()
-  };
-
-  if (roomMode === 'ai') {
-    room.players[ownerSide] = makePlayer(ownerName, ownerSocketId, false);
-    room.players[aiSide] = makePlayer('AI', null, true);
-  } else {
-    room.players[ownerSide] = makePlayer(ownerName, ownerSocketId, false);
-  }
-
-  rooms.set(roomId, room);
-  return room;
-}
-
-function sanitizeRoomId(value) {
-  return String(value || '').trim().toLowerCase().slice(0, 24);
-}
-
-function sanitizeName(value) {
-  return String(value || 'Guest').trim().slice(0, 24) || 'Guest';
-}
-
-function canControlSide(room, socketId, side) {
-  const p = room.players[side];
-  return !!p && !p.isAI && p.socketId === socketId;
-}
-
-function roomHasHuman(room) {
-  return ['w', 'b'].some((s) => room.players[s] && !room.players[s].isAI);
-}
-
-function roomHasTwoHumans(room) {
-  return ['w', 'b'].filter((s) => room.players[s] && !room.players[s].isAI).length === 2;
-}
-
-function aiSideInRoom(room) {
+function aiSide(room) {
   if (room.players.w?.isAI) return 'w';
   if (room.players.b?.isAI) return 'b';
   return null;
-}
-
-function challengeableRoomList() {
-  const items = [];
-  for (const room of rooms.values()) {
-    if (room.mode !== 'ai') continue;
-    if (room.chess.isGameOver()) continue;
-
-    const aiSide = aiSideInRoom(room);
-    if (!aiSide) continue;
-
-    const humanSide = aiSide === 'w' ? 'b' : 'w';
-    const human = room.players[humanSide];
-    if (!human || human.isAI) continue;
-
-    items.push({
-      roomId: room.id,
-      host: human.name,
-      openSide: aiSide,
-      turn: room.chess.turn(),
-      status: statusFrom(room.chess)
-    });
-  }
-
-  items.sort((a, b) => a.roomId.localeCompare(b.roomId));
-  return items;
-}
-
-function emitRoomList() {
-  io.emit('roomList', challengeableRoomList());
 }
 
 function emitState(roomId) {
@@ -146,76 +80,79 @@ function emitState(roomId) {
   });
 }
 
-function chooseSideForPvP(room, preferredSide) {
-  if (preferredSide === 'w' && !room.players.w) return 'w';
-  if (preferredSide === 'b' && !room.players.b) return 'b';
-  if (!room.players.w) return 'w';
-  if (!room.players.b) return 'b';
-  return 'spectator';
-}
+function roomSummaryList() {
+  const out = [];
+  for (const room of rooms.values()) {
+    const openSides = [];
 
-function joinAiRoom(room, socket, name, preferredSide) {
-  const aiSide = aiSideInRoom(room);
+    if (!room.players.w || (room.mode === 'ai' && room.players.w.isAI)) openSides.push('w');
+    if (!room.players.b || (room.mode === 'ai' && room.players.b.isAI)) openSides.push('b');
 
-  if (aiSide) {
-    if (preferredSide && preferredSide !== 'auto' && preferredSide !== aiSide) {
-      return { error: `Only ${sideLabel(aiSide)} is available in this AI room.` };
-    }
-    room.players[aiSide] = makePlayer(name, socket.id, false);
-    return { side: aiSide };
+    out.push({
+      roomId: room.id,
+      mode: room.mode,
+      white: room.players.w ? room.players.w.name : 'Waiting...',
+      black: room.players.b ? room.players.b.name : 'Waiting...',
+      openSides,
+      status: statusFrom(room.chess),
+      spectators: room.spectators.size,
+      canPlay: openSides.length > 0,
+      canSpectate: true
+    });
   }
 
-  const side = chooseSideForPvP(room, preferredSide);
-  if (side === 'spectator') return { side };
-  room.players[side] = makePlayer(name, socket.id, false);
-  return { side };
+  out.sort((a, b) => a.roomId.localeCompare(b.roomId));
+  return out;
+}
+
+function emitRoomList() {
+  io.emit('roomList', roomSummaryList());
+}
+
+function canControl(room, side, socketId) {
+  const p = room.players[side];
+  return !!p && !p.isAI && p.socketId === socketId;
 }
 
 function scheduleAiMove(roomId) {
   const room = rooms.get(roomId);
   if (!room || room.mode !== 'ai') return;
-
-  const side = room.chess.turn();
-  const current = room.players[side];
-  if (!current || !current.isAI) return;
   if (room.chess.isGameOver()) return;
 
+  const side = room.chess.turn();
+  const sidePlayer = room.players[side];
+  if (!sidePlayer || !sidePlayer.isAI) return;
+
   if (room.aiTimer) clearTimeout(room.aiTimer);
-  room.aiNonce += 1;
-  const nonce = room.aiNonce;
-
   room.aiTimer = setTimeout(() => {
-    const liveRoom = rooms.get(roomId);
-    if (!liveRoom) return;
-    if (liveRoom.aiNonce !== nonce) return;
-    if (liveRoom.mode !== 'ai') return;
-    if (liveRoom.chess.turn() !== side) return;
+    const live = rooms.get(roomId);
+    if (!live || live.mode !== 'ai' || live.chess.isGameOver()) return;
 
-    const turnPlayer = liveRoom.players[side];
+    const turnSide = live.chess.turn();
+    const turnPlayer = live.players[turnSide];
     if (!turnPlayer || !turnPlayer.isAI) return;
 
-    const moves = liveRoom.chess.moves({ verbose: true });
-    if (!moves.length) {
+    const legal = live.chess.moves({ verbose: true });
+    if (!legal.length) {
       emitState(roomId);
       emitRoomList();
       return;
     }
 
-    const move = moves[Math.floor(Math.random() * moves.length)];
-    liveRoom.chess.move({ from: move.from, to: move.to, promotion: move.promotion || 'q' });
-    liveRoom.updatedAt = Date.now();
+    const move = legal[Math.floor(Math.random() * legal.length)];
+    live.chess.move({ from: move.from, to: move.to, promotion: move.promotion || 'q' });
 
     emitState(roomId);
     emitRoomList();
     scheduleAiMove(roomId);
-  }, 380);
+  }, 420);
 }
 
 function cleanupRoomIfEmpty(roomId) {
   const room = rooms.get(roomId);
   if (!room) return;
 
-  const humans = ['w', 'b'].filter((s) => room.players[s] && !room.players[s].isAI).length;
+  const humans = countHumanPlayers(room);
   if (humans === 0 && room.spectators.size === 0) {
     if (room.aiTimer) clearTimeout(room.aiTimer);
     rooms.delete(roomId);
@@ -227,72 +164,159 @@ io.on('connection', (socket) => {
   socket.data.side = null;
   socket.data.role = null;
 
-  socket.emit('roomList', challengeableRoomList());
+  socket.emit('roomList', roomSummaryList());
 
-  socket.on('joinRoom', ({ roomId, name, preferredSide, mode }) => {
+  socket.on('startAiGame', ({ name, preferredSide }) => {
+    const cleanName = sanitizeName(name);
+    const desired = preferredSide === 'b' ? 'b' : preferredSide === 'w' ? 'w' : 'w';
+    const ai = desired === 'w' ? 'b' : 'w';
+
+    let roomId = generateAiRoomId();
+    while (rooms.has(roomId)) roomId = generateAiRoomId();
+
+    const room = {
+      id: roomId,
+      mode: 'ai',
+      chess: new Chess(),
+      players: { w: null, b: null },
+      spectators: new Set(),
+      aiTimer: null
+    };
+
+    room.players[desired] = makePlayer(cleanName, socket.id, false);
+    room.players[ai] = makePlayer('AI', null, true);
+    rooms.set(roomId, room);
+
+    socket.join(roomChannel(roomId));
+    socket.data.roomId = roomId;
+    socket.data.side = desired;
+    socket.data.role = 'player';
+
+    socket.emit('joined', { roomId, side: desired, mode: 'ai' });
+    emitState(roomId);
+    emitRoomList();
+    scheduleAiMove(roomId);
+  });
+
+  socket.on('joinHumanRoom', ({ roomId, name, preferredSide }) => {
     const cleanRoom = sanitizeRoomId(roomId);
     const cleanName = sanitizeName(name);
     const pref = preferredSide === 'w' || preferredSide === 'b' ? preferredSide : 'auto';
-    const requestedMode = mode === 'ai' ? 'ai' : 'pvp';
 
     if (!cleanRoom) {
-      socket.emit('errorMsg', 'Room code is required.');
+      socket.emit('errorMsg', 'Room code is required for human rooms.');
       return;
     }
 
     let room = rooms.get(cleanRoom);
     if (!room) {
-      room = createRoom(cleanRoom, requestedMode, cleanName, pref, socket.id);
-    } else if (room.mode !== requestedMode) {
-      socket.emit('errorMsg', `Room exists as ${room.mode.toUpperCase()}. Choose that mode to join.`);
+      room = {
+        id: cleanRoom,
+        mode: 'pvp',
+        chess: new Chess(),
+        players: { w: null, b: null },
+        spectators: new Set(),
+        aiTimer: null
+      };
+      rooms.set(cleanRoom, room);
+    }
+
+    if (room.mode !== 'pvp') {
+      socket.emit('errorMsg', 'This room is AI mode. Use room list to join it.');
+      return;
+    }
+
+    let side = null;
+    if (pref === 'w' && !room.players.w) side = 'w';
+    if (pref === 'b' && !room.players.b) side = 'b';
+    if (!side && !room.players.w) side = 'w';
+    if (!side && !room.players.b) side = 'b';
+
+    socket.join(roomChannel(cleanRoom));
+    socket.data.roomId = cleanRoom;
+
+    if (!side) {
+      room.spectators.add(socket.id);
+      socket.data.side = null;
+      socket.data.role = 'spectator';
+      socket.emit('joined', { roomId: cleanRoom, side: 'spectator', mode: 'pvp' });
+    } else {
+      room.players[side] = makePlayer(cleanName, socket.id, false);
+      socket.data.side = side;
+      socket.data.role = 'player';
+      socket.emit('joined', { roomId: cleanRoom, side, mode: 'pvp' });
+    }
+
+    emitState(cleanRoom);
+    emitRoomList();
+  });
+
+  socket.on('joinListedRoom', ({ roomId, action, preferredSide, name }) => {
+    const cleanRoom = sanitizeRoomId(roomId);
+    const cleanName = sanitizeName(name);
+    const pref = preferredSide === 'w' || preferredSide === 'b' ? preferredSide : 'auto';
+
+    const room = rooms.get(cleanRoom);
+    if (!room) {
+      socket.emit('errorMsg', 'Room no longer exists.');
+      emitRoomList();
       return;
     }
 
     socket.join(roomChannel(cleanRoom));
     socket.data.roomId = cleanRoom;
 
-    let result;
-    if (room.mode === 'ai') {
-      result = joinAiRoom(room, socket, cleanName, pref);
-    } else {
-      const side = chooseSideForPvP(room, pref);
-      if (side === 'spectator') {
-        result = { side: 'spectator' };
-      } else {
-        room.players[side] = makePlayer(cleanName, socket.id, false);
-        result = { side };
-      }
-    }
-
-    if (result?.error) {
-      socket.leave(roomChannel(cleanRoom));
-      socket.data.roomId = null;
-      socket.emit('errorMsg', result.error);
+    if (action === 'spectate') {
+      room.spectators.add(socket.id);
+      socket.data.side = null;
+      socket.data.role = 'spectator';
+      socket.emit('joined', { roomId: cleanRoom, side: 'spectator', mode: room.mode });
+      emitState(cleanRoom);
+      emitRoomList();
       return;
     }
 
-    socket.data.side = result.side;
-    socket.data.role = result.side === 'spectator' ? 'spectator' : 'player';
+    let side = null;
 
-    if (result.side === 'spectator') {
-      room.spectators.add(socket.id);
+    if (room.mode === 'pvp') {
+      if (pref === 'w' && !room.players.w) side = 'w';
+      if (pref === 'b' && !room.players.b) side = 'b';
+      if (!side && !room.players.w) side = 'w';
+      if (!side && !room.players.b) side = 'b';
+
+      if (!side) {
+        socket.emit('errorMsg', 'No free player slot. Join as spectator.');
+        return;
+      }
+
+      room.players[side] = makePlayer(cleanName, socket.id, false);
+    } else {
+      const openAiSide = aiSide(room);
+      if (!openAiSide) {
+        socket.emit('errorMsg', 'AI room is already full with two humans.');
+        return;
+      }
+
+      if (pref !== 'auto' && pref !== openAiSide) {
+        socket.emit('errorMsg', `Only ${sideLabel(openAiSide)} is open in this room.`);
+        return;
+      }
+
+      side = openAiSide;
+      room.players[side] = makePlayer(cleanName, socket.id, false);
     }
 
-    room.updatedAt = Date.now();
-
-    socket.emit('joined', {
-      roomId: cleanRoom,
-      side: result.side,
-      mode: room.mode
-    });
+    socket.data.side = side;
+    socket.data.role = 'player';
+    socket.emit('joined', { roomId: cleanRoom, side, mode: room.mode });
 
     emitState(cleanRoom);
     emitRoomList();
     scheduleAiMove(cleanRoom);
   });
 
-  socket.on('getRoomList', () => {
-    socket.emit('roomList', challengeableRoomList());
+  socket.on('requestRoomList', () => {
+    socket.emit('roomList', roomSummaryList());
   });
 
   socket.on('requestLegalMoves', ({ from }) => {
@@ -302,7 +326,7 @@ io.on('connection', (socket) => {
 
     const room = rooms.get(roomId);
     if (!room) return;
-    if (!canControlSide(room, socket.id, side)) return;
+    if (!canControl(room, side, socket.id)) return;
     if (room.chess.turn() !== side) return;
 
     const all = room.chess.moves({ verbose: true });
@@ -320,7 +344,7 @@ io.on('connection', (socket) => {
 
     const room = rooms.get(roomId);
     if (!room) return;
-    if (!canControlSide(room, socket.id, side)) {
+    if (!canControl(room, side, socket.id)) {
       socket.emit('errorMsg', 'You are not controlling this side.');
       return;
     }
@@ -329,20 +353,17 @@ io.on('connection', (socket) => {
       return;
     }
 
-    let move;
     try {
-      move = room.chess.move({ from, to, promotion: promotion || 'q' });
+      const move = room.chess.move({ from, to, promotion: promotion || 'q' });
+      if (!move) {
+        socket.emit('errorMsg', 'Illegal move.');
+        return;
+      }
     } catch {
       socket.emit('errorMsg', 'Illegal move.');
       return;
     }
 
-    if (!move) {
-      socket.emit('errorMsg', 'Illegal move.');
-      return;
-    }
-
-    room.updatedAt = Date.now();
     emitState(roomId);
     emitRoomList();
     scheduleAiMove(roomId);
@@ -355,11 +376,9 @@ io.on('connection', (socket) => {
 
     const room = rooms.get(roomId);
     if (!room) return;
-    if (!canControlSide(room, socket.id, side)) return;
+    if (!canControl(room, side, socket.id)) return;
 
     room.chess = new Chess();
-    room.updatedAt = Date.now();
-
     emitState(roomId);
     emitRoomList();
     scheduleAiMove(roomId);
@@ -376,12 +395,11 @@ io.on('connection', (socket) => {
     room.spectators.delete(socket.id);
 
     if (side === 'w' || side === 'b') {
-      const current = room.players[side];
-      if (current && !current.isAI && current.socketId === socket.id) {
+      const p = room.players[side];
+      if (p && !p.isAI && p.socketId === socket.id) {
         if (room.mode === 'ai') {
-          const otherSide = side === 'w' ? 'b' : 'w';
-          const other = room.players[otherSide];
-          if (other && !other.isAI) {
+          const humansLeft = countHumanPlayers(room) - 1;
+          if (humansLeft > 0) {
             room.players[side] = makePlayer('AI', null, true);
           } else {
             room.players[side] = null;
@@ -392,9 +410,7 @@ io.on('connection', (socket) => {
       }
     }
 
-    room.updatedAt = Date.now();
     cleanupRoomIfEmpty(roomId);
-
     if (rooms.has(roomId)) {
       emitState(roomId);
       emitRoomList();

@@ -24,14 +24,17 @@
   const files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
 
   const boardEl = document.getElementById('board');
+  const rankLabelsEl = document.getElementById('rankLabels');
+  const fileLabelsEl = document.getElementById('fileLabels');
+
   const nameInput = document.getElementById('nameInput');
-  const roomInput = document.getElementById('roomInput');
-  const modeSelect = document.getElementById('modeSelect');
   const colorSelect = document.getElementById('colorSelect');
-  const joinBtn = document.getElementById('joinBtn');
-  const newGameBtn = document.getElementById('newGameBtn');
+  const roomInput = document.getElementById('roomInput');
+
+  const playAiBtn = document.getElementById('playAiBtn');
+  const joinRoomBtn = document.getElementById('joinRoomBtn');
+  const resetBtn = document.getElementById('resetBtn');
   const refreshRoomsBtn = document.getElementById('refreshRoomsBtn');
-  const roomsList = document.getElementById('roomsList');
 
   const turnText = document.getElementById('turnText');
   const stateText = document.getElementById('stateText');
@@ -39,6 +42,7 @@
   const roomText = document.getElementById('roomText');
   const roleText = document.getElementById('roleText');
   const errorText = document.getElementById('errorText');
+  const roomsList = document.getElementById('roomsList');
 
   const promotionModal = document.getElementById('promotionModal');
   const promotionChoices = document.getElementById('promotionChoices');
@@ -46,66 +50,69 @@
   const app = {
     roomId: null,
     side: null,
-    mode: 'pvp',
+    role: null,
+    mode: null,
     turn: 'w',
     fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
     selected: null,
     legalMoves: [],
     pendingTarget: null,
     connected: false,
-    challengeRooms: [],
+    rooms: [],
     viewSide: 'w'
   };
 
-  joinBtn.addEventListener('click', () => {
-    const roomId = roomInput.value.trim();
+  playAiBtn.addEventListener('click', () => {
     const name = nameInput.value.trim() || 'Guest';
     const preferredSide = colorSelect.value;
-    const mode = modeSelect.value;
+    errorText.textContent = '';
+    socket.emit('startAiGame', { name, preferredSide });
+  });
+
+  joinRoomBtn.addEventListener('click', () => {
+    const name = nameInput.value.trim() || 'Guest';
+    const roomId = roomInput.value.trim();
+    const preferredSide = colorSelect.value;
 
     if (!roomId) {
-      errorText.textContent = 'Please enter a room code.';
+      errorText.textContent = 'Enter room code for human room.';
       return;
     }
 
     errorText.textContent = '';
-    socket.emit('joinRoom', {
-      roomId,
-      name,
-      preferredSide,
-      mode
-    });
+    socket.emit('joinHumanRoom', { roomId, name, preferredSide });
+  });
+
+  resetBtn.addEventListener('click', () => {
+    socket.emit('resetGame');
   });
 
   refreshRoomsBtn.addEventListener('click', () => {
-    socket.emit('getRoomList');
-  });
-
-  newGameBtn.addEventListener('click', () => {
-    if (!app.connected) return;
-    socket.emit('resetGame');
+    socket.emit('requestRoomList');
   });
 
   socket.on('connect', () => {
     app.connected = true;
-    stateText.textContent = 'Connected. Join a room.';
-    socket.emit('getRoomList');
+    stateText.textContent = 'Connected';
+    socket.emit('requestRoomList');
   });
 
   socket.on('disconnect', () => {
     app.connected = false;
-    stateText.textContent = 'Disconnected from server.';
+    stateText.textContent = 'Disconnected';
   });
 
   socket.on('joined', ({ roomId, side, mode }) => {
     app.roomId = roomId;
-    app.side = side;
+    app.side = side === 'spectator' ? null : side;
+    app.role = side === 'spectator' ? 'spectator' : 'player';
     app.mode = mode;
-    app.viewSide = side === 'b' ? 'b' : 'w';
+
+    app.viewSide = app.side === 'b' ? 'b' : 'w';
 
     roomText.textContent = `Room: ${roomId}`;
     roleText.textContent = `Role: ${toRoleLabel(side)} | Mode: ${mode.toUpperCase()}`;
-    errorText.textContent = '';
+    drawLabels();
     drawBoard();
   });
 
@@ -115,7 +122,7 @@
     app.mode = state.mode;
 
     if (app.side === 'b') app.viewSide = 'b';
-    else if (app.side === 'w') app.viewSide = 'w';
+    if (app.side === 'w') app.viewSide = 'w';
 
     turnText.textContent = `Turn: ${state.turn === 'w' ? 'White' : 'Black'}`;
     stateText.textContent = state.status;
@@ -123,11 +130,12 @@
 
     app.selected = null;
     app.legalMoves = [];
+    drawLabels();
     drawBoard();
   });
 
   socket.on('roomList', (rooms) => {
-    app.challengeRooms = Array.isArray(rooms) ? rooms : [];
+    app.rooms = Array.isArray(rooms) ? rooms : [];
     drawRoomList();
   });
 
@@ -144,56 +152,94 @@
   function drawRoomList() {
     roomsList.innerHTML = '';
 
-    if (!app.challengeRooms.length) {
-      const empty = document.createElement('p');
-      empty.className = 'rooms-empty';
-      empty.textContent = 'No AI rooms available to challenge right now.';
-      roomsList.appendChild(empty);
+    if (!app.rooms.length) {
+      const p = document.createElement('p');
+      p.className = 'rooms-empty';
+      p.textContent = 'No active rooms yet.';
+      roomsList.appendChild(p);
       return;
     }
 
-    for (const room of app.challengeRooms) {
+    for (const room of app.rooms) {
       const card = document.createElement('div');
       card.className = 'room-card';
 
       const info = document.createElement('div');
       info.className = 'room-card-info';
-      info.innerHTML = `<strong>${escapeHtml(room.roomId)}</strong><span>Host: ${escapeHtml(room.host)} | Open: ${room.openSide === 'w' ? 'White' : 'Black'}</span>`;
+      info.innerHTML = `<strong>${escapeHtml(room.roomId)}</strong><span>${room.mode.toUpperCase()} | White: ${escapeHtml(room.white)} | Black: ${escapeHtml(room.black)}</span>`;
 
-      const btn = document.createElement('button');
-      btn.className = 'small-btn';
-      btn.textContent = 'Join as Opponent';
-      btn.addEventListener('click', () => {
-        const name = nameInput.value.trim() || 'Guest';
-        const preferredSide = colorSelect.value;
+      const actions = document.createElement('div');
+      actions.className = 'room-actions';
 
-        socket.emit('joinRoom', {
+      const playBtn = document.createElement('button');
+      playBtn.className = 'small-btn';
+      playBtn.textContent = room.canPlay ? 'Play' : 'Full';
+      playBtn.disabled = !room.canPlay;
+      playBtn.addEventListener('click', () => {
+        socket.emit('joinListedRoom', {
           roomId: room.roomId,
-          name,
-          preferredSide,
-          mode: 'ai'
+          action: 'play',
+          preferredSide: colorSelect.value,
+          name: nameInput.value.trim() || 'Guest'
         });
       });
 
+      const watchBtn = document.createElement('button');
+      watchBtn.className = 'small-btn';
+      watchBtn.textContent = 'Spectate';
+      watchBtn.addEventListener('click', () => {
+        socket.emit('joinListedRoom', {
+          roomId: room.roomId,
+          action: 'spectate',
+          preferredSide: 'auto',
+          name: nameInput.value.trim() || 'Guest'
+        });
+      });
+
+      actions.appendChild(playBtn);
+      actions.appendChild(watchBtn);
+
       card.appendChild(info);
-      card.appendChild(btn);
+      card.appendChild(actions);
       roomsList.appendChild(card);
+    }
+  }
+
+  function orientedRanks() {
+    return app.viewSide === 'b' ? [1, 2, 3, 4, 5, 6, 7, 8] : [8, 7, 6, 5, 4, 3, 2, 1];
+  }
+
+  function orientedFiles() {
+    return app.viewSide === 'b' ? ['h', 'g', 'f', 'e', 'd', 'c', 'b', 'a'] : ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
+  }
+
+  function drawLabels() {
+    rankLabelsEl.innerHTML = '';
+    fileLabelsEl.innerHTML = '';
+
+    for (const rank of orientedRanks()) {
+      const el = document.createElement('span');
+      el.className = 'outer-label';
+      el.textContent = String(rank);
+      rankLabelsEl.appendChild(el);
+    }
+
+    for (const file of orientedFiles()) {
+      const el = document.createElement('span');
+      el.className = 'outer-label';
+      el.textContent = file;
+      fileLabelsEl.appendChild(el);
     }
   }
 
   function drawBoard() {
     boardEl.innerHTML = '';
     const pieceBySquare = parseFenPieces(app.fen);
-
-    const rankOrder = app.viewSide === 'b'
-      ? [1, 2, 3, 4, 5, 6, 7, 8]
-      : [8, 7, 6, 5, 4, 3, 2, 1];
-    const fileOrder = app.viewSide === 'b'
-      ? ['h', 'g', 'f', 'e', 'd', 'c', 'b', 'a']
-      : ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
+    const ranks = orientedRanks();
+    const fileOrder = orientedFiles();
 
     for (let row = 0; row < 8; row += 1) {
-      const rank = rankOrder[row];
+      const rank = ranks[row];
       for (let col = 0; col < 8; col += 1) {
         const file = fileOrder[col];
         const squareName = `${file}${rank}`;
@@ -202,33 +248,15 @@
         square.className = `square ${(row + col) % 2 === 0 ? 'light' : 'dark'}`;
         square.dataset.square = squareName;
 
-        if (app.selected === squareName) {
-          square.classList.add('selected');
-        }
+        if (app.selected === squareName) square.classList.add('selected');
 
         const legal = app.legalMoves.find((m) => m.to === squareName);
         if (legal) {
           square.classList.add(legal.flags.includes('c') || legal.flags.includes('e') ? 'capture' : 'legal');
         }
 
-        if (row === 7) {
-          const fileTag = document.createElement('span');
-          fileTag.className = 'coord coord-file';
-          fileTag.textContent = file;
-          square.appendChild(fileTag);
-        }
-
-        if (col === 0) {
-          const rankTag = document.createElement('span');
-          rankTag.className = 'coord coord-rank';
-          rankTag.textContent = String(rank);
-          square.appendChild(rankTag);
-        }
-
         const piece = pieceBySquare.get(squareName);
-        if (piece) {
-          square.appendChild(createPieceNode(piece, `piece ${piece[0] === 'w' ? 'white' : 'black'}`));
-        }
+        if (piece) square.appendChild(createPieceNode(piece, `piece ${piece[0] === 'w' ? 'white' : 'black'}`));
 
         square.addEventListener('click', () => onSquareClick(squareName, piece));
         boardEl.appendChild(square);
@@ -237,10 +265,8 @@
   }
 
   function onSquareClick(squareName, piece) {
-    if (!app.connected || !app.roomId) return;
-
-    const myTurn = app.side === 'w' || app.side === 'b' ? app.turn === app.side : false;
-    if (!myTurn) return;
+    if (!app.roomId || !app.side || app.role !== 'player') return;
+    if (app.turn !== app.side) return;
 
     if (app.selected) {
       const chosen = app.legalMoves.find((m) => m.to === squareName);
@@ -284,8 +310,7 @@
     for (const p of ['q', 'r', 'b', 'n']) {
       const btn = document.createElement('button');
       btn.className = 'promo-btn';
-      const side = app.side;
-      btn.appendChild(createPieceNode(`${side}${p.toUpperCase()}`, 'promo-piece'));
+      btn.appendChild(createPieceNode(`${app.side}${p.toUpperCase()}`, 'promo-piece'));
       btn.addEventListener('click', () => {
         if (!app.selected || !app.pendingTarget) return;
         sendMove(app.selected, app.pendingTarget, p);
@@ -310,7 +335,6 @@
     socket.emit('makeMove', { from, to, promotion });
     app.selected = null;
     app.legalMoves = [];
-    app.pendingTarget = null;
     drawBoard();
   }
 
@@ -330,8 +354,7 @@
 
         const color = ch === ch.toUpperCase() ? 'w' : 'b';
         const piece = ch.toUpperCase();
-        const sq = `${files[fileIdx]}${rank}`;
-        map.set(sq, `${color}${piece}`);
+        map.set(`${files[fileIdx]}${rank}`, `${color}${piece}`);
         fileIdx += 1;
       }
     }
@@ -339,30 +362,24 @@
     return map;
   }
 
-  function toRoleLabel(side) {
-    if (side === 'w') return 'Player (White)';
-    if (side === 'b') return 'Player (Black)';
-    return 'Spectator';
-  }
-
   function createPieceNode(pieceKey, className) {
     if (className.includes('promo-piece')) {
-      const promoImg = document.createElement('img');
-      promoImg.className = className;
-      promoImg.src = PIECE_IMAGES[pieceKey];
-      promoImg.alt = pieceKey;
-      promoImg.draggable = false;
-      promoImg.onerror = () => {
+      const promo = document.createElement('img');
+      promo.className = className;
+      promo.src = PIECE_IMAGES[pieceKey];
+      promo.alt = pieceKey;
+      promo.draggable = false;
+      promo.onerror = () => {
         const fallback = document.createElement('span');
         fallback.className = `${className} piece-fallback`;
         fallback.textContent = PIECE_FALLBACK[pieceKey] || '?';
-        promoImg.replaceWith(fallback);
+        promo.replaceWith(fallback);
       };
-      return promoImg;
+      return promo;
     }
 
-    const wrapper = document.createElement('div');
-    wrapper.className = className;
+    const wrap = document.createElement('div');
+    wrap.className = className;
 
     const img = document.createElement('img');
     img.className = 'piece-glyph';
@@ -373,11 +390,17 @@
       const fallback = document.createElement('div');
       fallback.className = 'piece-fallback';
       fallback.textContent = PIECE_FALLBACK[pieceKey] || '?';
-      wrapper.replaceChildren(fallback);
+      wrap.replaceChildren(fallback);
     };
 
-    wrapper.appendChild(img);
-    return wrapper;
+    wrap.appendChild(img);
+    return wrap;
+  }
+
+  function toRoleLabel(side) {
+    if (side === 'w') return 'Player (White)';
+    if (side === 'b') return 'Player (Black)';
+    return 'Spectator';
   }
 
   function escapeHtml(value) {
@@ -389,7 +412,8 @@
       .replaceAll("'", '&#39;');
   }
 
-  socket.emit('getRoomList');
+  socket.emit('requestRoomList');
+  drawLabels();
   drawRoomList();
   drawBoard();
 })();
