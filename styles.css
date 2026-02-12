@@ -244,23 +244,28 @@ button:disabled {
 }
 
 .board-wrap {
+  width: 100%;
   min-width: 0;
   display: flex;
   align-items: center;
   justify-content: center;
+  overflow-x: hidden;
 }
 
 .board-shell {
-  width: min(96vw, 860px);
+  --rank-col: clamp(14px, 3.6vw, 24px);
+  --board-gap: clamp(3px, 0.8vw, 6px);
+  width: 100%;
+  max-width: 860px;
   display: grid;
-  gap: 6px;
+  gap: var(--board-gap);
 }
 
 .board-row {
   display: grid;
-  grid-template-columns: 24px 1fr;
+  grid-template-columns: var(--rank-col) minmax(0, 1fr);
   align-items: stretch;
-  gap: 6px;
+  gap: var(--board-gap);
 }
 
 .rank-labels {
@@ -271,7 +276,7 @@ button:disabled {
 }
 
 .file-labels {
-  margin-left: 30px;
+  margin-left: calc(var(--rank-col) + var(--board-gap));
   display: grid;
   grid-template-columns: repeat(8, 1fr);
   align-items: center;
@@ -482,7 +487,8 @@ button:disabled {
 @media (max-width: 1060px) {
   .app-shell {
     grid-template-columns: 1fr;
-    width: min(98vw, 860px);
+    width: min(100vw, 860px);
+    padding: 0 8px;
     gap: 12px;
   }
 
@@ -494,6 +500,14 @@ button:disabled {
 @media (max-width: 700px) {
   .controls {
     padding: 12px;
+  }
+
+  .board-wrap {
+    order: 1;
+  }
+
+  .controls {
+    order: 2;
   }
 
   .button-row {
@@ -509,16 +523,17 @@ button:disabled {
     width: 100%;
   }
 
-  .board-row {
-    grid-template-columns: 20px 1fr;
-    gap: 4px;
-  }
-
-  .file-labels {
-    margin-left: 24px;
+  .board-shell {
+    --rank-col: 16px;
+    --board-gap: 4px;
   }
 
   .board {
     border-width: 6px;
+  }
+
+  .outer-label {
+    font-size: 13px;
+    font-weight: 900;
   }
 }
