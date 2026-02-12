@@ -30,6 +30,7 @@
 
   const nameInput = document.getElementById('nameInput');
   const colorSelect = document.getElementById('colorSelect');
+  const aiLevelSelect = document.getElementById('aiLevelSelect');
   const roomInput = document.getElementById('roomInput');
 
   const playAiBtn = document.getElementById('playAiBtn');
@@ -92,8 +93,9 @@
   playAiBtn.addEventListener('click', () => {
     const name = nameInput.value.trim() || 'Guest';
     const preferredSide = colorSelect.value;
+    const aiLevel = aiLevelSelect ? aiLevelSelect.value : 'medium';
     errorText.textContent = '';
-    socket.emit('startAiGame', { name, preferredSide });
+    socket.emit('startAiGame', { name, preferredSide, aiLevel });
   });
 
   joinRoomBtn.addEventListener('click', () => {
@@ -270,7 +272,8 @@
 
       const info = document.createElement('div');
       info.className = 'room-card-info';
-      info.innerHTML = `<strong>${escapeHtml(room.roomId)}</strong><span>${room.mode.toUpperCase()} | White: ${escapeHtml(room.white)} | Black: ${escapeHtml(room.black)}</span>`;
+      const levelInfo = room.mode === 'ai' ? ` | Level: ${escapeHtml((room.aiLevel || 'medium').toUpperCase())}` : '';
+      info.innerHTML = `<strong>${escapeHtml(room.roomId)}</strong><span>${room.mode.toUpperCase()}${levelInfo} | White: ${escapeHtml(room.white)} | Black: ${escapeHtml(room.black)}</span>`;
 
       const actions = document.createElement('div');
       actions.className = 'room-actions';

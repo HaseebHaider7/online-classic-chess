@@ -10,7 +10,11 @@ const io = new Server(server);
 
 const PORT = process.env.PORT || 3000;
 const rooms = new Map();
-const AI_BASE_DEPTH = 3;
+const AI_DEPTH_BY_LEVEL = {
+  easy: 1,
+  medium: 2,
+  hard: 3
+};
 
 const PIECE_VALUES = {
   p: 100,
@@ -119,6 +123,10 @@ function sideLabel(side) {
   return side === 'w' ? 'White' : 'Black';
 }
 
+function normalizeAiLevel(value) {
+  return value === 'easy' || value === 'hard' ? value : 'medium';
+}
+
 function countHumanPlayers(room) {
   let count = 0;
   if (room.players.w && !room.players.w.isAI) count += 1;
@@ -167,6 +175,7 @@ function roomSummaryList() {
     out.push({
       roomId: room.id,
       mode: room.mode,
+      aiLevel: room.mode === 'ai' ? room.aiLevel || 'medium' : null,
       white: room.players.w ? room.players.w.name : 'Waiting...',
       black: room.players.b ? room.players.b.name : 'Waiting...',
       openSides,
@@ -249,15 +258,14 @@ function negamax(chess, depth, alpha, beta, colorSign) {
   return best;
 }
 
-function chooseBestMove(chess) {
+function chooseBestMove(chess, depth) {
   const legal = orderedMoves(chess);
   if (!legal.length) return null;
 
   const turn = chess.turn();
   const colorSign = turn === 'w' ? 1 : -1;
 
-  // Slightly deeper in low-branch positions.
-  const depth = legal.length <= 18 ? AI_BASE_DEPTH + 1 : AI_BASE_DEPTH;
+  const searchDepth = legal.length <= 18 ? depth + 1 : depth;
 
   let bestMove = legal[0];
   let bestScore = -Infinity;
@@ -266,7 +274,7 @@ function chooseBestMove(chess) {
 
   for (const move of legal) {
     chess.move(move);
-    const score = -negamax(chess, depth - 1, -beta, -alpha, -colorSign);
+    const score = -negamax(chess, searchDepth - 1, -beta, -alpha, -colorSign);
     chess.undo();
 
     if (score > bestScore) {
@@ -277,6 +285,23 @@ function chooseBestMove(chess) {
   }
 
   return bestMove;
+}
+
+function chooseAiMove(chess, aiLevel) {
+  const legal = orderedMoves(chess);
+  if (!legal.length) return null;
+
+  if (aiLevel === 'easy') {
+    if (Math.random() < 0.75) {
+      return legal[Math.floor(Math.random() * legal.length)];
+    }
+    const captures = legal.filter((m) => m.captured);
+    if (captures.length) return captures[Math.floor(Math.random() * captures.length)];
+    return legal[Math.floor(Math.random() * legal.length)];
+  }
+
+  const depth = AI_DEPTH_BY_LEVEL[aiLevel] || AI_DEPTH_BY_LEVEL.medium;
+  return chooseBestMove(chess, depth);
 }
 
 function scheduleAiMove(roomId) {
@@ -297,7 +322,7 @@ function scheduleAiMove(roomId) {
     const turnPlayer = live.players[turnSide];
     if (!turnPlayer || !turnPlayer.isAI) return;
 
-    const move = chooseBestMove(live.chess);
+    const move = chooseAiMove(live.chess, live.aiLevel || 'medium');
     if (!move) {
       emitState(roomId);
       emitRoomList();
@@ -332,10 +357,11 @@ io.on('connection', (socket) => {
 
   socket.emit('roomList', roomSummaryList());
 
-  socket.on('startAiGame', ({ name, preferredSide }) => {
+  socket.on('startAiGame', ({ name, preferredSide, aiLevel }) => {
     const cleanName = sanitizeName(name);
     const desired = preferredSide === 'b' ? 'b' : preferredSide === 'w' ? 'w' : 'w';
     const ai = desired === 'w' ? 'b' : 'w';
+    const level = normalizeAiLevel(aiLevel);
 
     let roomId = generateAiRoomId();
     while (rooms.has(roomId)) roomId = generateAiRoomId();
@@ -343,6 +369,7 @@ io.on('connection', (socket) => {
     const room = {
       id: roomId,
       mode: 'ai',
+      aiLevel: level,
       chess: new Chess(),
       players: { w: null, b: null },
       spectators: new Set(),
@@ -381,6 +408,7 @@ io.on('connection', (socket) => {
       room = {
         id: cleanRoom,
         mode: 'pvp',
+        aiLevel: null,
         chess: new Chess(),
         players: { w: null, b: null },
         spectators: new Set(),
