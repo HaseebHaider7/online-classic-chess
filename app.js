@@ -191,7 +191,9 @@
     const viewportWidth = window.visualViewport ? window.visualViewport.width : window.innerWidth;
     const docWidth = document.documentElement ? document.documentElement.clientWidth : viewportWidth;
     const wrapWidth = boardWrapEl ? boardWrapEl.getBoundingClientRect().width : viewportWidth;
-    const boardSize = Math.floor(Math.min(viewportWidth, docWidth, wrapWidth) - 2);
+    const portrait = window.matchMedia && window.matchMedia('(orientation: portrait)').matches;
+    const safety = portrait ? 14 : 4;
+    const boardSize = Math.floor(Math.min(viewportWidth, docWidth, wrapWidth) - safety);
     boardShellEl.style.setProperty('--board-size', `${Math.max(220, Math.min(860, boardSize))}px`);
   }
 
@@ -491,7 +493,6 @@
     const groups = {
       setup: document.getElementById('panel-setup'),
       room: document.getElementById('panel-room'),
-      status: document.getElementById('panel-status'),
       rooms: document.getElementById('panel-rooms'),
       notes: document.getElementById('panel-notes')
     };

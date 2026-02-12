@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>Online Classic 3D Chess</title>
-  <link rel="stylesheet" href="styles.css?v=mobile-fit-13" />
+  <link rel="stylesheet" href="styles.css?v=mobile-fit-14" />
 </head>
 <body>
   <div class="background">
@@ -20,7 +20,6 @@
         <select id="panelSectionSelect" class="panel-section-select" aria-label="Sidebar sections">
           <option value="setup">Game Setup</option>
           <option value="room">Human Room</option>
-          <option value="status">Status</option>
           <option value="rooms">Active Rooms</option>
           <option value="notes">Notes</option>
         </select>
@@ -70,19 +69,6 @@
         </div>
       </details>
 
-      <details id="panel-status" class="control-group">
-        <summary>Status</summary>
-        <div class="group-body">
-          <div class="status-block">
-            <p id="turnText">Turn: White</p>
-            <p id="stateText">Not connected</p>
-            <p id="ruleText">Choose AI or join a room</p>
-            <p id="roomText">Room: -</p>
-            <p id="roleText">Role: -</p>
-          </div>
-        </div>
-      </details>
-
       <details id="panel-rooms" class="control-group">
         <summary>Active Rooms</summary>
         <div class="group-body">
@@ -117,6 +103,17 @@
         </div>
       </div>
     </section>
+
+    <aside class="panel live-status">
+      <h2>Live Status</h2>
+      <div class="status-block">
+        <p id="turnText">Turn: White</p>
+        <p id="stateText">Not connected</p>
+        <p id="ruleText">Choose AI or join a room</p>
+        <p id="roomText">Room: -</p>
+        <p id="roleText">Role: -</p>
+      </div>
+    </aside>
   </main>
 
   <div id="promotionModal" class="modal hidden" role="dialog" aria-modal="true" aria-label="Choose promotion piece">
@@ -127,6 +124,6 @@
   </div>
 
   <script src="/socket.io/socket.io.js"></script>
-  <script src="app.js?v=mobile-fit-13"></script>
+  <script src="app.js?v=mobile-fit-14"></script>
 </body>
 </html>
