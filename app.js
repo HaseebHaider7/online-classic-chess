@@ -68,7 +68,6 @@
   const toastEl = document.createElement('div');
   toastEl.id = 'toast';
   document.body.appendChild(toastEl);
-  let fitRaf = null;
 
   playAiBtn.addEventListener('click', () => {
     const name = nameInput.value.trim() || 'Guest';
@@ -188,51 +187,7 @@
 
   function updateBoardFitFromViewport() {
     if (!boardShellEl) return;
-
-    const vwRaw = window.visualViewport ? window.visualViewport.width : window.innerWidth;
-    const docW = document.documentElement ? document.documentElement.clientWidth : vwRaw;
-    const vw = Math.min(vwRaw, docW);
-    const wrapWidth = boardWrapEl ? boardWrapEl.getBoundingClientRect().width : vw;
-    let wrapPad = 0;
-    if (boardWrapEl) {
-      const styles = window.getComputedStyle(boardWrapEl);
-      wrapPad = (parseFloat(styles.paddingLeft) || 0) + (parseFloat(styles.paddingRight) || 0);
-    }
-
-    const usableByViewport = Math.floor(vw - 12);
-    const usableByContainer = Math.floor(wrapWidth - wrapPad - 2);
-    const usable = Math.max(250, Math.min(usableByViewport, usableByContainer));
-    const target = Math.max(250, Math.min(860, usable));
-
-    boardShellEl.style.setProperty('--board-runtime-width', `${target}px`);
-    scheduleFitVerification();
-  }
-
-  function scheduleFitVerification(pass = 0) {
-    if (fitRaf) cancelAnimationFrame(fitRaf);
-    fitRaf = requestAnimationFrame(() => {
-      fitRaf = null;
-      verifyBoardFitsViewport(pass);
-    });
-  }
-
-  function verifyBoardFitsViewport(pass = 0) {
-    if (!boardShellEl) return;
-
-    const rect = boardShellEl.getBoundingClientRect();
-    const vwRaw = window.visualViewport ? window.visualViewport.width : window.innerWidth;
-    const docW = document.documentElement ? document.documentElement.clientWidth : vwRaw;
-    const viewportWidth = Math.min(vwRaw, docW);
-    const mobileGuard = viewportWidth <= 700 ? 16 : 8;
-    const maxWidth = viewportWidth - mobileGuard;
-    const overflow = rect.width - maxWidth;
-
-    if (overflow <= 0.5) return;
-
-    const current = parseFloat(getComputedStyle(boardShellEl).width) || rect.width;
-    const next = Math.max(250, Math.floor(current - overflow - 2));
-    boardShellEl.style.setProperty('--board-runtime-width', `${next}px`);
-    if (pass < 4) scheduleFitVerification(pass + 1);
+    boardShellEl.style.removeProperty('--board-runtime-width');
   }
 
   function showToast(message, duration = 1800) {
@@ -377,7 +332,6 @@
       }
     }
 
-    scheduleFitVerification();
   }
 
   function onSquareClick(squareName, piece) {

@@ -249,17 +249,22 @@ button:disabled {
   display: flex;
   align-items: center;
   justify-content: center;
-  overflow-x: hidden;
+  overflow-x: auto;
   padding-left: max(4px, env(safe-area-inset-left, 0px));
   padding-right: max(4px, env(safe-area-inset-right, 0px));
 }
 
 .board-shell {
-  width: min(var(--board-runtime-width, 100%), 100%);
+  width: min(
+    860px,
+    calc(100dvw - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px) - 8px)
+  );
   max-width: min(
     860px,
     calc(100dvw - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px) - 8px)
   );
+  min-width: 250px;
+  margin: 0 auto;
   display: grid;
   gap: 0;
 }
@@ -551,6 +556,7 @@ button:disabled {
     order: 1;
     padding-left: max(2px, env(safe-area-inset-left, 0px));
     padding-right: max(2px, env(safe-area-inset-right, 0px));
+    justify-content: flex-start;
   }
 
   .controls {
