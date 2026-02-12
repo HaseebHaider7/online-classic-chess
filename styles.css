@@ -255,14 +255,8 @@ button:disabled {
 }
 
 .board-shell {
-  width: min(
-    860px,
-    calc(100dvw - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px) - 8px)
-  );
-  max-width: min(
-    860px,
-    calc(100dvw - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px) - 8px)
-  );
+  width: 100%;
+  max-width: 860px;
   min-width: 250px;
   margin: 0 auto;
   display: grid;
@@ -535,10 +529,10 @@ button:disabled {
 @media (max-width: 1060px) {
   .app-shell {
     grid-template-columns: 1fr;
-    width: min(100dvw, 860px);
-    max-width: 100dvw;
-    padding-left: max(4px, env(safe-area-inset-left, 0px));
-    padding-right: max(4px, env(safe-area-inset-right, 0px));
+    width: min(100%, 860px);
+    max-width: 100%;
+    padding-left: max(6px, env(safe-area-inset-left, 0px));
+    padding-right: max(6px, env(safe-area-inset-right, 0px));
     gap: 12px;
   }
 
@@ -548,24 +542,36 @@ button:disabled {
 }
 
 @media (max-width: 700px) {
+  .app-shell {
+    width: 100%;
+    max-width: 100%;
+    margin: 8px auto 16px;
+    padding-left: max(4px, env(safe-area-inset-left, 0px));
+    padding-right: max(4px, env(safe-area-inset-right, 0px));
+  }
+
   .controls {
     padding: 12px;
   }
 
   .board-wrap {
     order: 1;
-    padding-left: max(2px, env(safe-area-inset-left, 0px));
-    padding-right: max(2px, env(safe-area-inset-right, 0px));
+    width: 100%;
+    padding-left: 0;
+    padding-right: 0;
     justify-content: center;
     overflow-x: hidden;
   }
 
-  /* Hard cap for iPhone Safari: always keep all 8 files visible */
   .board-shell {
-    width: min(92vw, 620px);
-    max-width: 92vw;
+    width: 100%;
+    max-width: 100%;
     min-width: 0;
     margin: 0 auto;
+  }
+
+  .board-3d-frame {
+    padding: 1.8%;
   }
 
   .controls {
