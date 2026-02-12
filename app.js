@@ -26,8 +26,6 @@
   const boardEl = document.getElementById('board');
   const boardShellEl = document.querySelector('.board-shell');
   const boardWrapEl = document.querySelector('.board-wrap');
-  let rankLabelsEl = document.getElementById('rankLabels');
-  let fileLabelsEl = document.getElementById('fileLabels');
 
   const nameInput = document.getElementById('nameInput');
   const colorSelect = document.getElementById('colorSelect');
@@ -70,26 +68,6 @@
   const toastEl = document.createElement('div');
   toastEl.id = 'toast';
   document.body.appendChild(toastEl);
-
-  // Backward-compat fallback for older deployed HTML that lacks label containers.
-  if (boardEl && (!rankLabelsEl || !fileLabelsEl)) {
-    const boardShell = boardEl.closest('.board-shell');
-    const boardRow = boardEl.closest('.board-row');
-    if (boardShell && boardRow) {
-      if (!rankLabelsEl) {
-        rankLabelsEl = document.createElement('div');
-        rankLabelsEl.id = 'rankLabels';
-        rankLabelsEl.className = 'rank-labels';
-        boardRow.prepend(rankLabelsEl);
-      }
-      if (!fileLabelsEl) {
-        fileLabelsEl = document.createElement('div');
-        fileLabelsEl.id = 'fileLabels';
-        fileLabelsEl.className = 'file-labels';
-        boardShell.appendChild(fileLabelsEl);
-      }
-    }
-  }
 
   playAiBtn.addEventListener('click', () => {
     const name = nameInput.value.trim() || 'Guest';
@@ -143,7 +121,6 @@
     roomText.textContent = `Room: ${roomId}`;
     roleText.textContent = `Role: ${toRoleLabel(side)} | Mode: ${mode.toUpperCase()}`;
     showToast(`Joined ${roomId} as ${toRoleLabel(side)}.`, 1600);
-    drawLabels();
     drawBoard();
   });
 
@@ -170,7 +147,6 @@
     app.prevMoveSan = state.lastMoveSan || null;
 
     handleMoveNotifications(state, previousTurn, previousMove);
-    drawLabels();
     drawBoard();
   });
 
@@ -212,20 +188,21 @@
   function updateBoardFitFromViewport() {
     if (!boardShellEl) return;
 
-    const vw = window.visualViewport ? window.visualViewport.width : window.innerWidth;
+    const vwRaw = window.visualViewport ? window.visualViewport.width : window.innerWidth;
+    const docW = document.documentElement ? document.documentElement.clientWidth : vwRaw;
+    const vw = Math.min(vwRaw, docW);
     const wrapWidth = boardWrapEl ? boardWrapEl.getBoundingClientRect().width : vw;
-    const safeLeft = 8;
-    const safeRight = 8;
-    const rankCol = vw <= 700 ? 14 : 20;
-    const boardGap = vw <= 700 ? 3 : 5;
+    let wrapPad = 0;
+    if (boardWrapEl) {
+      const styles = window.getComputedStyle(boardWrapEl);
+      wrapPad = (parseFloat(styles.paddingLeft) || 0) + (parseFloat(styles.paddingRight) || 0);
+    }
 
-    const usableByViewport = Math.floor(vw - safeLeft - safeRight);
-    const usableByContainer = Math.floor(wrapWidth - 2);
+    const usableByViewport = Math.floor(vw - 12);
+    const usableByContainer = Math.floor(wrapWidth - wrapPad - 2);
     const usable = Math.max(250, Math.min(usableByViewport, usableByContainer));
     const target = Math.max(250, Math.min(860, usable));
 
-    boardShellEl.style.setProperty('--rank-col', `${rankCol}px`);
-    boardShellEl.style.setProperty('--board-gap', `${boardGap}px`);
     boardShellEl.style.setProperty('--board-runtime-width', `${target}px`);
   }
 
@@ -324,27 +301,6 @@
     return app.viewSide === 'b' ? ['h', 'g', 'f', 'e', 'd', 'c', 'b', 'a'] : ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
   }
 
-  function drawLabels() {
-    if (!rankLabelsEl || !fileLabelsEl) return;
-
-    rankLabelsEl.innerHTML = '';
-    fileLabelsEl.innerHTML = '';
-
-    for (const rank of orientedRanks()) {
-      const el = document.createElement('span');
-      el.className = 'outer-label';
-      el.textContent = String(rank);
-      rankLabelsEl.appendChild(el);
-    }
-
-    for (const file of orientedFiles()) {
-      const el = document.createElement('span');
-      el.className = 'outer-label';
-      el.textContent = file;
-      fileLabelsEl.appendChild(el);
-    }
-  }
-
   function drawBoard() {
     if (!boardEl) return;
 
@@ -368,6 +324,20 @@
         const legal = app.legalMoves.find((m) => m.to === squareName);
         if (legal) {
           square.classList.add(legal.flags.includes('c') || legal.flags.includes('e') ? 'capture' : 'legal');
+        }
+
+        // Coordinates on the edge of the board (inside edge squares).
+        if (row === 7) {
+          const fileTag = document.createElement('span');
+          fileTag.className = 'edge-label edge-file';
+          fileTag.textContent = file;
+          square.appendChild(fileTag);
+        }
+        if (col === 0) {
+          const rankTag = document.createElement('span');
+          rankTag.className = 'edge-label edge-rank';
+          rankTag.textContent = String(rank);
+          square.appendChild(rankTag);
         }
 
         const piece = pieceBySquare.get(squareName);
@@ -530,11 +500,17 @@
   socket.emit('requestRoomList');
   updateBoardFitFromViewport();
   window.addEventListener('resize', updateBoardFitFromViewport);
+  window.addEventListener('orientationchange', () => {
+    setTimeout(updateBoardFitFromViewport, 50);
+  });
+  window.addEventListener('load', () => {
+    setTimeout(updateBoardFitFromViewport, 30);
+  });
+  setTimeout(updateBoardFitFromViewport, 80);
   if (window.visualViewport) {
     window.visualViewport.addEventListener('resize', updateBoardFitFromViewport);
     window.visualViewport.addEventListener('scroll', updateBoardFitFromViewport);
   }
-  drawLabels();
   drawRoomList();
   drawBoard();
 })();
