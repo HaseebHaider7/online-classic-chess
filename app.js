@@ -24,6 +24,7 @@
   const files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
 
   const boardEl = document.getElementById('board');
+  const boardShellEl = document.querySelector('.board-shell');
   let rankLabelsEl = document.getElementById('rankLabels');
   let fileLabelsEl = document.getElementById('fileLabels');
 
@@ -59,8 +60,14 @@
     pendingTarget: null,
     connected: false,
     rooms: [],
-    viewSide: 'w'
+    viewSide: 'w',
+    prevTurn: 'w',
+    prevMoveSan: null
   };
+
+  const toastEl = document.createElement('div');
+  toastEl.id = 'toast';
+  document.body.appendChild(toastEl);
 
   // Backward-compat fallback for older deployed HTML that lacks label containers.
   if (boardEl && (!rankLabelsEl || !fileLabelsEl)) {
@@ -132,11 +139,15 @@
 
     roomText.textContent = `Room: ${roomId}`;
     roleText.textContent = `Role: ${toRoleLabel(side)} | Mode: ${mode.toUpperCase()}`;
+    showToast(`Joined ${roomId} as ${toRoleLabel(side)}.`, 1600);
     drawLabels();
     drawBoard();
   });
 
   socket.on('gameState', (state) => {
+    const previousTurn = app.turn;
+    const previousMove = app.prevMoveSan;
+
     app.fen = state.fen;
     app.turn = state.turn;
     app.mode = state.mode;
@@ -151,6 +162,10 @@
 
     app.selected = null;
     app.legalMoves = [];
+    app.prevTurn = previousTurn;
+    app.prevMoveSan = state.lastMoveSan || null;
+
+    handleMoveNotifications(state, previousTurn, previousMove);
     drawLabels();
     drawBoard();
   });
@@ -168,7 +183,60 @@
 
   socket.on('errorMsg', (msg) => {
     errorText.textContent = msg;
+    showToast(msg, 2200);
   });
+
+  function handleMoveNotifications(state, previousTurn, previousMove) {
+    if (!state.lastMoveSan) return;
+    if (state.lastMoveSan === previousMove && state.turn === previousTurn) return;
+
+    if (app.role === 'player' && app.side) {
+      if (state.mode === 'ai') {
+        if (state.turn === app.side) {
+          showToast(`AI played ${state.lastMoveSan}. Your move.`, 2400);
+          maybeBrowserNotify('Your move', `AI played ${state.lastMoveSan}.`);
+        }
+      } else if (state.mode === 'pvp') {
+        if (state.lastMoveBy && state.lastMoveBy !== app.side && state.turn === app.side) {
+          showToast(`Opponent played ${state.lastMoveSan}. Your turn.`, 2600);
+          maybeBrowserNotify('Your turn', `Opponent played ${state.lastMoveSan}.`);
+        }
+      }
+    }
+  }
+
+  function updateBoardFitFromViewport() {
+    if (!boardShellEl) return;
+
+    const vw = window.visualViewport ? window.visualViewport.width : window.innerWidth;
+    const wrapWidth = boardShellEl.parentElement ? boardShellEl.parentElement.clientWidth : vw;
+    const target = Math.max(250, Math.min(860, Math.floor(Math.min(vw, wrapWidth) - 8)));
+    boardShellEl.style.maxWidth = `${target}px`;
+  }
+
+  function showToast(message, duration = 1800) {
+    if (!message) return;
+    toastEl.textContent = message;
+    toastEl.classList.add('show');
+    clearTimeout(showToast.timer);
+    showToast.timer = setTimeout(() => {
+      toastEl.classList.remove('show');
+    }, duration);
+  }
+
+  function maybeBrowserNotify(title, body) {
+    if (typeof window.Notification === 'undefined') return;
+    if (!document.hidden) return;
+    if (Notification.permission === 'granted') {
+      new Notification(title, { body });
+      return;
+    }
+    if (Notification.permission === 'default') {
+      Notification.requestPermission().then((permission) => {
+        if (permission === 'granted') new Notification(title, { body });
+      }).catch(() => {});
+    }
+  }
 
   function updateStatusVisual(status) {
     const text = String(status || '').toLowerCase();
@@ -444,6 +512,12 @@
   }
 
   socket.emit('requestRoomList');
+  updateBoardFitFromViewport();
+  window.addEventListener('resize', updateBoardFitFromViewport);
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', updateBoardFitFromViewport);
+    window.visualViewport.addEventListener('scroll', updateBoardFitFromViewport);
+  }
   drawLabels();
   drawRoomList();
   drawBoard();

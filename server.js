@@ -76,7 +76,9 @@ function emitState(roomId) {
       white: room.players.w?.isAI ? 'ai' : room.players.w ? 'human' : 'empty',
       black: room.players.b?.isAI ? 'ai' : room.players.b ? 'human' : 'empty'
     },
-    spectators: room.spectators.size
+    spectators: room.spectators.size,
+    lastMoveSan: room.lastMoveSan || null,
+    lastMoveBy: room.lastMoveBy || null
   });
 }
 
@@ -140,7 +142,9 @@ function scheduleAiMove(roomId) {
     }
 
     const move = legal[Math.floor(Math.random() * legal.length)];
-    live.chess.move({ from: move.from, to: move.to, promotion: move.promotion || 'q' });
+    const played = live.chess.move({ from: move.from, to: move.to, promotion: move.promotion || 'q' });
+    live.lastMoveSan = played?.san || null;
+    live.lastMoveBy = side;
 
     emitState(roomId);
     emitRoomList();
@@ -180,7 +184,9 @@ io.on('connection', (socket) => {
       chess: new Chess(),
       players: { w: null, b: null },
       spectators: new Set(),
-      aiTimer: null
+      aiTimer: null,
+      lastMoveSan: null,
+      lastMoveBy: null
     };
 
     room.players[desired] = makePlayer(cleanName, socket.id, false);
@@ -216,7 +222,9 @@ io.on('connection', (socket) => {
         chess: new Chess(),
         players: { w: null, b: null },
         spectators: new Set(),
-        aiTimer: null
+        aiTimer: null,
+        lastMoveSan: null,
+        lastMoveBy: null
       };
       rooms.set(cleanRoom, room);
     }
@@ -359,6 +367,8 @@ io.on('connection', (socket) => {
         socket.emit('errorMsg', 'Illegal move.');
         return;
       }
+      room.lastMoveSan = move.san;
+      room.lastMoveBy = side;
     } catch {
       socket.emit('errorMsg', 'Illegal move.');
       return;
@@ -379,6 +389,8 @@ io.on('connection', (socket) => {
     if (!canControl(room, side, socket.id)) return;
 
     room.chess = new Chess();
+    room.lastMoveSan = null;
+    room.lastMoveBy = null;
     emitState(roomId);
     emitRoomList();
     scheduleAiMove(roomId);

@@ -256,7 +256,7 @@ button:disabled {
   --rank-col: clamp(14px, 3.6vw, 24px);
   --board-gap: clamp(3px, 0.8vw, 6px);
   width: 100%;
-  max-width: 860px;
+  max-width: min(860px, 100%);
   display: grid;
   gap: var(--board-gap);
 }
@@ -482,6 +482,32 @@ button:disabled {
   width: 42px;
   height: 42px;
   object-fit: contain;
+}
+
+#toast {
+  position: fixed;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%) translateY(20px);
+  background: rgba(8, 18, 30, 0.94);
+  color: #f4f9ff;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-family: 'Segoe UI', Tahoma, sans-serif;
+  font-size: 0.9rem;
+  font-weight: 600;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  z-index: 1000;
+  max-width: min(92vw, 520px);
+  text-align: center;
+}
+
+#toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
 }
 
 @media (max-width: 1060px) {
