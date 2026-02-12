@@ -188,7 +188,11 @@
 
   function updateBoardFitFromViewport() {
     if (!boardShellEl) return;
-    boardShellEl.style.removeProperty('--board-size');
+    const viewportWidth = window.visualViewport ? window.visualViewport.width : window.innerWidth;
+    const docWidth = document.documentElement ? document.documentElement.clientWidth : viewportWidth;
+    const wrapWidth = boardWrapEl ? boardWrapEl.getBoundingClientRect().width : viewportWidth;
+    const boardSize = Math.floor(Math.min(viewportWidth, docWidth, wrapWidth) - 2);
+    boardShellEl.style.setProperty('--board-size', `${Math.max(220, Math.min(860, boardSize))}px`);
   }
 
   function showToast(message, duration = 1800) {
