@@ -25,6 +25,7 @@
 
   const boardEl = document.getElementById('board');
   const boardShellEl = document.querySelector('.board-shell');
+  const boardWrapEl = document.querySelector('.board-wrap');
   let rankLabelsEl = document.getElementById('rankLabels');
   let fileLabelsEl = document.getElementById('fileLabels');
 
@@ -212,13 +213,16 @@
     if (!boardShellEl) return;
 
     const vw = window.visualViewport ? window.visualViewport.width : window.innerWidth;
+    const wrapWidth = boardWrapEl ? boardWrapEl.getBoundingClientRect().width : vw;
     const safeLeft = 8;
     const safeRight = 8;
     const rankCol = vw <= 700 ? 14 : 20;
     const boardGap = vw <= 700 ? 3 : 5;
 
-    const usable = Math.max(260, Math.floor(vw - safeLeft - safeRight));
-    const target = Math.max(260, Math.min(860, usable));
+    const usableByViewport = Math.floor(vw - safeLeft - safeRight);
+    const usableByContainer = Math.floor(wrapWidth - 2);
+    const usable = Math.max(250, Math.min(usableByViewport, usableByContainer));
+    const target = Math.max(250, Math.min(860, usable));
 
     boardShellEl.style.setProperty('--rank-col', `${rankCol}px`);
     boardShellEl.style.setProperty('--board-gap', `${boardGap}px`);
