@@ -126,6 +126,7 @@
 
     turnText.textContent = `Turn: ${state.turn === 'w' ? 'White' : 'Black'}`;
     stateText.textContent = state.status;
+    updateStatusVisual(state.status);
     ruleText.textContent = `White: ${state.players.white} (${state.playerTypes.white}) | Black: ${state.players.black} (${state.playerTypes.black}) | Spectators: ${state.spectators}`;
 
     app.selected = null;
@@ -148,6 +149,12 @@
   socket.on('errorMsg', (msg) => {
     errorText.textContent = msg;
   });
+
+  function updateStatusVisual(status) {
+    const text = String(status || '').toLowerCase();
+    const isGameOver = text.includes('checkmate') || text.includes('draw') || text.includes('stalemate');
+    stateText.classList.toggle('game-over', isGameOver);
+  }
 
   function drawRoomList() {
     roomsList.innerHTML = '';
