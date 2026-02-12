@@ -296,7 +296,7 @@ button:disabled {
 .board-shell {
   width: min(
     860px,
-    calc(100dvw - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px))
+    calc(100dvw - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px) - 10px)
   );
   max-width: 100%;
   min-width: 0;
@@ -574,7 +574,10 @@ button:disabled {
   }
 
   .board-shell {
-    width: 100%;
+    width: min(
+      100%,
+      calc(100dvw - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px) - 10px)
+    );
   }
 
   .controls {
@@ -605,7 +608,10 @@ button:disabled {
   }
 
   .board-shell {
-    width: 100%;
+    width: min(
+      100%,
+      calc(100dvw - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px) - 14px)
+    );
     max-width: 100%;
     min-width: 0;
     margin: 0;
