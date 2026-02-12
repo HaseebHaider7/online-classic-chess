@@ -223,7 +223,8 @@
     const vwRaw = window.visualViewport ? window.visualViewport.width : window.innerWidth;
     const docW = document.documentElement ? document.documentElement.clientWidth : vwRaw;
     const viewportWidth = Math.min(vwRaw, docW);
-    const maxWidth = viewportWidth - 8;
+    const mobileGuard = viewportWidth <= 700 ? 16 : 8;
+    const maxWidth = viewportWidth - mobileGuard;
     const overflow = rect.width - maxWidth;
 
     if (overflow <= 0.5) return;

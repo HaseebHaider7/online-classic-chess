@@ -250,12 +250,16 @@ button:disabled {
   align-items: center;
   justify-content: center;
   overflow-x: hidden;
-  padding: 0 clamp(6px, 2.5vw, 14px);
+  padding-left: max(4px, env(safe-area-inset-left, 0px));
+  padding-right: max(4px, env(safe-area-inset-right, 0px));
 }
 
 .board-shell {
   width: min(var(--board-runtime-width, 100%), 100%);
-  max-width: min(860px, 100%, calc(100vw - 8px));
+  max-width: min(
+    860px,
+    calc(100dvw - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px) - 8px)
+  );
   display: grid;
   gap: 0;
 }
@@ -526,8 +530,10 @@ button:disabled {
 @media (max-width: 1060px) {
   .app-shell {
     grid-template-columns: 1fr;
-    width: min(100vw, 860px);
-    padding: 0 8px;
+    width: min(100dvw, 860px);
+    max-width: 100dvw;
+    padding-left: max(4px, env(safe-area-inset-left, 0px));
+    padding-right: max(4px, env(safe-area-inset-right, 0px));
     gap: 12px;
   }
 
@@ -543,6 +549,8 @@ button:disabled {
 
   .board-wrap {
     order: 1;
+    padding-left: max(2px, env(safe-area-inset-left, 0px));
+    padding-right: max(2px, env(safe-area-inset-right, 0px));
   }
 
   .controls {
