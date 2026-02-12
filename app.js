@@ -47,6 +47,7 @@
 
   const promotionModal = document.getElementById('promotionModal');
   const promotionChoices = document.getElementById('promotionChoices');
+  const panelSectionSelect = document.getElementById('panelSectionSelect');
 
   const app = {
     roomId: null,
@@ -482,6 +483,30 @@
       .replaceAll("'", '&#39;');
   }
 
+  function openPanelSection(sectionId) {
+    const groups = {
+      setup: document.getElementById('panel-setup'),
+      room: document.getElementById('panel-room'),
+      status: document.getElementById('panel-status'),
+      rooms: document.getElementById('panel-rooms'),
+      notes: document.getElementById('panel-notes')
+    };
+
+    Object.values(groups).forEach((group) => {
+      if (!group) return;
+      group.open = false;
+    });
+
+    const active = groups[sectionId];
+    if (active) active.open = true;
+  }
+
+  if (panelSectionSelect) {
+    panelSectionSelect.addEventListener('change', () => {
+      openPanelSection(panelSectionSelect.value);
+    });
+  }
+
   socket.emit('requestRoomList');
   updateBoardFitFromViewport();
   window.addEventListener('resize', updateBoardFitFromViewport);
@@ -501,5 +526,6 @@
     window.visualViewport.addEventListener('scroll', updateBoardFitFromViewport);
   }
   drawRoomList();
+  openPanelSection('setup');
   drawBoard();
 })();

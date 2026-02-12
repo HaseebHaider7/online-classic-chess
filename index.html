@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>Online Classic 3D Chess</title>
-  <link rel="stylesheet" href="styles.css?v=mobile-fit-10" />
+  <link rel="stylesheet" href="styles.css?v=mobile-fit-11" />
 </head>
 <body>
   <div class="background">
@@ -15,65 +15,97 @@
 
   <main class="app-shell">
     <section class="panel controls">
-      <h1>Online Classic 3D Chess</h1>
-
-      <label class="field">
-        <span>Your name</span>
-        <input id="nameInput" maxlength="24" placeholder="Player name" />
-      </label>
-
-      <label class="field">
-        <span>Preferred color</span>
-        <select id="colorSelect">
-          <option value="auto">Auto</option>
-          <option value="w">White</option>
-          <option value="b">Black</option>
+      <div class="controls-head">
+        <h1>Classic Chess</h1>
+        <select id="panelSectionSelect" class="panel-section-select" aria-label="Sidebar sections">
+          <option value="setup">Game Setup</option>
+          <option value="room">Human Room</option>
+          <option value="status">Status</option>
+          <option value="rooms">Active Rooms</option>
+          <option value="notes">Notes</option>
         </select>
-      </label>
-
-      <label class="field">
-        <span>AI level</span>
-        <select id="aiLevelSelect">
-          <option value="easy">Easy</option>
-          <option value="medium" selected>Medium</option>
-          <option value="hard">Hard</option>
-        </select>
-      </label>
-
-      <div class="button-row">
-        <button id="playAiBtn">Play vs AI</button>
-        <button id="resetBtn">Reset Game</button>
       </div>
 
-      <label class="field">
-        <span>Join human room</span>
-        <input id="roomInput" maxlength="24" placeholder="room code" />
-      </label>
+      <details id="panel-setup" class="control-group" open>
+        <summary>Game Setup</summary>
+        <div class="group-body">
+          <label class="field">
+            <span>Your name</span>
+            <input id="nameInput" maxlength="24" placeholder="Player name" />
+          </label>
 
-      <button id="joinRoomBtn">Join Human Room</button>
+          <label class="field">
+            <span>Preferred color</span>
+            <select id="colorSelect">
+              <option value="auto">Auto</option>
+              <option value="w">White</option>
+              <option value="b">Black</option>
+            </select>
+          </label>
 
-      <div class="status-block">
-        <p id="turnText">Turn: White</p>
-        <p id="stateText">Not connected</p>
-        <p id="ruleText">Choose AI or join a room</p>
-        <p id="roomText">Room: -</p>
-        <p id="roleText">Role: -</p>
-      </div>
+          <label class="field">
+            <span>AI level</span>
+            <select id="aiLevelSelect">
+              <option value="easy">Easy</option>
+              <option value="medium" selected>Medium</option>
+              <option value="hard">Hard</option>
+            </select>
+          </label>
 
-      <section class="rooms-box">
-        <div class="rooms-head">
-          <h2>Active Rooms</h2>
-          <button id="refreshRoomsBtn" class="small-btn">Refresh</button>
+          <div class="button-row">
+            <button id="playAiBtn">Play vs AI</button>
+            <button id="resetBtn">Reset Game</button>
+          </div>
         </div>
-        <div id="roomsList" class="rooms-list"></div>
-      </section>
+      </details>
 
-      <div class="legend">
-        <h2>Notes</h2>
-        <p>By default use "Play vs AI" without any room code.</p>
-        <p>Use room code only when you want human-vs-human room play.</p>
-        <p id="errorText" class="error-line"></p>
-      </div>
+      <details id="panel-room" class="control-group">
+        <summary>Human Room</summary>
+        <div class="group-body">
+          <label class="field">
+            <span>Join human room</span>
+            <input id="roomInput" maxlength="24" placeholder="room code" />
+          </label>
+          <button id="joinRoomBtn">Join Human Room</button>
+        </div>
+      </details>
+
+      <details id="panel-status" class="control-group">
+        <summary>Status</summary>
+        <div class="group-body">
+          <div class="status-block">
+            <p id="turnText">Turn: White</p>
+            <p id="stateText">Not connected</p>
+            <p id="ruleText">Choose AI or join a room</p>
+            <p id="roomText">Room: -</p>
+            <p id="roleText">Role: -</p>
+          </div>
+        </div>
+      </details>
+
+      <details id="panel-rooms" class="control-group">
+        <summary>Active Rooms</summary>
+        <div class="group-body">
+          <section class="rooms-box">
+            <div class="rooms-head">
+              <h2>Open Rooms</h2>
+              <button id="refreshRoomsBtn" class="small-btn">Refresh</button>
+            </div>
+            <div id="roomsList" class="rooms-list"></div>
+          </section>
+        </div>
+      </details>
+
+      <details id="panel-notes" class="control-group">
+        <summary>Notes</summary>
+        <div class="group-body">
+          <div class="legend">
+            <p>By default use "Play vs AI" without any room code.</p>
+            <p>Use room code only when you want human-vs-human room play.</p>
+            <p id="errorText" class="error-line"></p>
+          </div>
+        </div>
+      </details>
     </section>
 
     <section class="board-wrap">
@@ -95,6 +127,6 @@
   </div>
 
   <script src="/socket.io/socket.io.js"></script>
-  <script src="app.js?v=mobile-fit-10"></script>
+  <script src="app.js?v=mobile-fit-11"></script>
 </body>
 </html>
