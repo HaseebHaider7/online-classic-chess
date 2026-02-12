@@ -10,6 +10,80 @@ const io = new Server(server);
 
 const PORT = process.env.PORT || 3000;
 const rooms = new Map();
+const AI_BASE_DEPTH = 3;
+
+const PIECE_VALUES = {
+  p: 100,
+  n: 320,
+  b: 330,
+  r: 500,
+  q: 900,
+  k: 0
+};
+
+// Piece-square tables from White's perspective.
+const PST = {
+  p: [
+    [0, 0, 0, 0, 0, 0, 0, 0],
+    [50, 50, 50, 50, 50, 50, 50, 50],
+    [10, 10, 20, 30, 30, 20, 10, 10],
+    [5, 5, 10, 25, 25, 10, 5, 5],
+    [0, 0, 0, 20, 20, 0, 0, 0],
+    [5, -5, -10, 0, 0, -10, -5, 5],
+    [5, 10, 10, -20, -20, 10, 10, 5],
+    [0, 0, 0, 0, 0, 0, 0, 0]
+  ],
+  n: [
+    [-50, -40, -30, -30, -30, -30, -40, -50],
+    [-40, -20, 0, 5, 5, 0, -20, -40],
+    [-30, 5, 10, 15, 15, 10, 5, -30],
+    [-30, 0, 15, 20, 20, 15, 0, -30],
+    [-30, 5, 15, 20, 20, 15, 5, -30],
+    [-30, 0, 10, 15, 15, 10, 0, -30],
+    [-40, -20, 0, 0, 0, 0, -20, -40],
+    [-50, -40, -30, -30, -30, -30, -40, -50]
+  ],
+  b: [
+    [-20, -10, -10, -10, -10, -10, -10, -20],
+    [-10, 5, 0, 0, 0, 0, 5, -10],
+    [-10, 10, 10, 10, 10, 10, 10, -10],
+    [-10, 0, 10, 10, 10, 10, 0, -10],
+    [-10, 5, 5, 10, 10, 5, 5, -10],
+    [-10, 0, 5, 10, 10, 5, 0, -10],
+    [-10, 0, 0, 0, 0, 0, 0, -10],
+    [-20, -10, -10, -10, -10, -10, -10, -20]
+  ],
+  r: [
+    [0, 0, 0, 5, 5, 0, 0, 0],
+    [-5, 0, 0, 0, 0, 0, 0, -5],
+    [-5, 0, 0, 0, 0, 0, 0, -5],
+    [-5, 0, 0, 0, 0, 0, 0, -5],
+    [-5, 0, 0, 0, 0, 0, 0, -5],
+    [-5, 0, 0, 0, 0, 0, 0, -5],
+    [5, 10, 10, 10, 10, 10, 10, 5],
+    [0, 0, 0, 0, 0, 0, 0, 0]
+  ],
+  q: [
+    [-20, -10, -10, -5, -5, -10, -10, -20],
+    [-10, 0, 0, 0, 0, 5, 0, -10],
+    [-10, 0, 5, 5, 5, 5, 5, -10],
+    [-5, 0, 5, 5, 5, 5, 0, -5],
+    [0, 0, 5, 5, 5, 5, 0, -5],
+    [-10, 5, 5, 5, 5, 5, 0, -10],
+    [-10, 0, 5, 0, 0, 0, 0, -10],
+    [-20, -10, -10, -5, -5, -10, -10, -20]
+  ],
+  k: [
+    [-30, -40, -40, -50, -50, -40, -40, -30],
+    [-30, -40, -40, -50, -50, -40, -40, -30],
+    [-30, -40, -40, -50, -50, -40, -40, -30],
+    [-30, -40, -40, -50, -50, -40, -40, -30],
+    [-20, -30, -30, -40, -40, -30, -30, -20],
+    [-10, -20, -20, -20, -20, -20, -20, -10],
+    [20, 20, 0, 0, 0, 0, 20, 20],
+    [20, 30, 10, 0, 0, 10, 30, 20]
+  ]
+};
 
 function roomChannel(id) {
   return `room:${id}`;
@@ -116,6 +190,95 @@ function canControl(room, side, socketId) {
   return !!p && !p.isAI && p.socketId === socketId;
 }
 
+function evaluateBoard(chess) {
+  if (chess.isCheckmate()) return -100000;
+  if (chess.isDraw()) return 0;
+
+  let score = 0;
+  const board = chess.board();
+
+  for (let r = 0; r < 8; r += 1) {
+    for (let c = 0; c < 8; c += 1) {
+      const piece = board[r][c];
+      if (!piece) continue;
+
+      const base = PIECE_VALUES[piece.type];
+      const pstRow = piece.color === 'w' ? r : 7 - r;
+      const pst = PST[piece.type][pstRow][c];
+      const signed = piece.color === 'w' ? 1 : -1;
+      score += signed * (base + pst);
+    }
+  }
+
+  // Small mobility bonus.
+  const turn = chess.turn();
+  const mobility = chess.moves().length;
+  score += (turn === 'w' ? 1 : -1) * mobility * 2;
+
+  return score;
+}
+
+function orderedMoves(chess) {
+  const moves = chess.moves({ verbose: true });
+  moves.sort((a, b) => {
+    const aScore = (a.captured ? 100 : 0) + (a.promotion ? 80 : 0) + (a.san.includes('+') ? 30 : 0);
+    const bScore = (b.captured ? 100 : 0) + (b.promotion ? 80 : 0) + (b.san.includes('+') ? 30 : 0);
+    return bScore - aScore;
+  });
+  return moves;
+}
+
+function negamax(chess, depth, alpha, beta, colorSign) {
+  if (depth === 0 || chess.isGameOver()) {
+    return colorSign * evaluateBoard(chess);
+  }
+
+  let best = -Infinity;
+  const moves = orderedMoves(chess);
+
+  for (const move of moves) {
+    chess.move(move);
+    const score = -negamax(chess, depth - 1, -beta, -alpha, -colorSign);
+    chess.undo();
+
+    if (score > best) best = score;
+    if (score > alpha) alpha = score;
+    if (alpha >= beta) break;
+  }
+
+  return best;
+}
+
+function chooseBestMove(chess) {
+  const legal = orderedMoves(chess);
+  if (!legal.length) return null;
+
+  const turn = chess.turn();
+  const colorSign = turn === 'w' ? 1 : -1;
+
+  // Slightly deeper in low-branch positions.
+  const depth = legal.length <= 18 ? AI_BASE_DEPTH + 1 : AI_BASE_DEPTH;
+
+  let bestMove = legal[0];
+  let bestScore = -Infinity;
+  let alpha = -Infinity;
+  const beta = Infinity;
+
+  for (const move of legal) {
+    chess.move(move);
+    const score = -negamax(chess, depth - 1, -beta, -alpha, -colorSign);
+    chess.undo();
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestMove = move;
+    }
+    if (score > alpha) alpha = score;
+  }
+
+  return bestMove;
+}
+
 function scheduleAiMove(roomId) {
   const room = rooms.get(roomId);
   if (!room || room.mode !== 'ai') return;
@@ -134,14 +297,13 @@ function scheduleAiMove(roomId) {
     const turnPlayer = live.players[turnSide];
     if (!turnPlayer || !turnPlayer.isAI) return;
 
-    const legal = live.chess.moves({ verbose: true });
-    if (!legal.length) {
+    const move = chooseBestMove(live.chess);
+    if (!move) {
       emitState(roomId);
       emitRoomList();
       return;
     }
 
-    const move = legal[Math.floor(Math.random() * legal.length)];
     const played = live.chess.move({ from: move.from, to: move.to, promotion: move.promotion || 'q' });
     live.lastMoveSan = played?.san || null;
     live.lastMoveBy = side;

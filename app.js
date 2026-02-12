@@ -156,7 +156,8 @@
     if (app.side === 'w') app.viewSide = 'w';
 
     turnText.textContent = `Turn: ${state.turn === 'w' ? 'White' : 'Black'}`;
-    stateText.textContent = state.status;
+    const myTurn = app.role === 'player' && app.side && state.turn === app.side;
+    stateText.textContent = myTurn ? `${state.status} | Your move` : state.status;
     updateStatusVisual(state.status);
     ruleText.textContent = `White: ${state.players.white} (${state.playerTypes.white}) | Black: ${state.players.black} (${state.playerTypes.black}) | Spectators: ${state.spectators}`;
 
@@ -209,9 +210,17 @@
     if (!boardShellEl) return;
 
     const vw = window.visualViewport ? window.visualViewport.width : window.innerWidth;
-    const wrapWidth = boardShellEl.parentElement ? boardShellEl.parentElement.clientWidth : vw;
-    const target = Math.max(250, Math.min(860, Math.floor(Math.min(vw, wrapWidth) - 8)));
-    boardShellEl.style.maxWidth = `${target}px`;
+    const safeLeft = 8;
+    const safeRight = 8;
+    const rankCol = vw <= 700 ? 14 : 20;
+    const boardGap = vw <= 700 ? 3 : 5;
+
+    const usable = Math.max(260, Math.floor(vw - safeLeft - safeRight));
+    const target = Math.max(260, Math.min(860, usable));
+
+    boardShellEl.style.setProperty('--rank-col', `${rankCol}px`);
+    boardShellEl.style.setProperty('--board-gap', `${boardGap}px`);
+    boardShellEl.style.setProperty('--board-runtime-width', `${target}px`);
   }
 
   function showToast(message, duration = 1800) {
