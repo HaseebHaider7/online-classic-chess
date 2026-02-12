@@ -249,15 +249,15 @@ button:disabled {
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  overflow-x: auto;
+  overflow-x: hidden;
   padding-left: max(4px, env(safe-area-inset-left, 0px));
   padding-right: max(4px, env(safe-area-inset-right, 0px));
 }
 
 .board-shell {
-  width: 100%;
-  max-width: 860px;
-  min-width: 250px;
+  width: var(--board-size, min(860px, 100%));
+  max-width: 100%;
+  min-width: 220px;
   margin: 0 auto;
   display: grid;
   gap: 0;
@@ -561,7 +561,6 @@ button:disabled {
     padding-right: 0;
     justify-content: center;
     overflow-x: hidden;
-    min-height: var(--fit-height, auto);
   }
 
   .board-shell {

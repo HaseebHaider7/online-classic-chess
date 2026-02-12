@@ -64,8 +64,6 @@
     prevTurn: 'w',
     prevMoveSan: null
   };
-  const isSafari = /Safari/i.test(navigator.userAgent)
-    && !/Chrome|CriOS|Chromium|Edg|OPR|FxiOS/i.test(navigator.userAgent);
 
   const toastEl = document.createElement('div');
   toastEl.id = 'toast';
@@ -189,36 +187,12 @@
 
   function updateBoardFitFromViewport() {
     if (!boardShellEl) return;
-    boardShellEl.style.removeProperty('--board-runtime-width');
-    enforceSafariMobileFit();
-  }
-
-  function enforceSafariMobileFit() {
-    if (!boardShellEl || !boardWrapEl) return;
-
-    if (!isSafari || window.innerWidth > 900) {
-      boardShellEl.style.removeProperty('transform');
-      boardWrapEl.style.removeProperty('--fit-height');
-      return;
-    }
-
-    requestAnimationFrame(() => {
-      const viewportWidth = window.visualViewport ? window.visualViewport.width : window.innerWidth;
-      const rect = boardShellEl.getBoundingClientRect();
-      if (!rect.width) return;
-
-      const allowed = Math.max(220, viewportWidth - 6);
-      const scale = Math.min(1, allowed / rect.width);
-
-      if (scale < 0.999) {
-        boardShellEl.style.transformOrigin = 'top center';
-        boardShellEl.style.transform = `scale(${scale})`;
-        boardWrapEl.style.setProperty('--fit-height', `${Math.ceil(rect.height * scale)}px`);
-      } else {
-        boardShellEl.style.removeProperty('transform');
-        boardWrapEl.style.removeProperty('--fit-height');
-      }
-    });
+    const vvWidth = window.visualViewport ? window.visualViewport.width : window.innerWidth;
+    const docWidth = document.documentElement ? document.documentElement.clientWidth : vvWidth;
+    const wrapWidth = boardWrapEl ? boardWrapEl.clientWidth : vvWidth;
+    const available = Math.floor(Math.min(vvWidth, docWidth, wrapWidth) - 2);
+    const boardSize = Math.max(220, Math.min(860, available));
+    boardShellEl.style.setProperty('--board-size', `${boardSize}px`);
   }
 
   function showToast(message, duration = 1800) {
@@ -392,7 +366,6 @@
       app.legalMoves = [];
       drawBoard();
     }
-    enforceSafariMobileFit();
   }
 
   function needsPromotion(toSquare) {
@@ -523,6 +496,10 @@
   window.addEventListener('load', () => {
     setTimeout(updateBoardFitFromViewport, 30);
   });
+  if ('ResizeObserver' in window && boardWrapEl) {
+    const boardResizeObserver = new ResizeObserver(() => updateBoardFitFromViewport());
+    boardResizeObserver.observe(boardWrapEl);
+  }
   setTimeout(updateBoardFitFromViewport, 80);
   if (window.visualViewport) {
     window.visualViewport.addEventListener('resize', updateBoardFitFromViewport);
