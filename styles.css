@@ -255,7 +255,7 @@ button:disabled {
 
 .board-shell {
   width: min(var(--board-runtime-width, 100%), 100%);
-  max-width: min(860px, 100%);
+  max-width: min(860px, 100%, calc(100vw - 8px));
   display: grid;
   gap: 0;
 }

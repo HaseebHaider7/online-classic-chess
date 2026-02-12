@@ -68,6 +68,7 @@
   const toastEl = document.createElement('div');
   toastEl.id = 'toast';
   document.body.appendChild(toastEl);
+  let fitRaf = null;
 
   playAiBtn.addEventListener('click', () => {
     const name = nameInput.value.trim() || 'Guest';
@@ -204,6 +205,33 @@
     const target = Math.max(250, Math.min(860, usable));
 
     boardShellEl.style.setProperty('--board-runtime-width', `${target}px`);
+    scheduleFitVerification();
+  }
+
+  function scheduleFitVerification(pass = 0) {
+    if (fitRaf) cancelAnimationFrame(fitRaf);
+    fitRaf = requestAnimationFrame(() => {
+      fitRaf = null;
+      verifyBoardFitsViewport(pass);
+    });
+  }
+
+  function verifyBoardFitsViewport(pass = 0) {
+    if (!boardShellEl) return;
+
+    const rect = boardShellEl.getBoundingClientRect();
+    const vwRaw = window.visualViewport ? window.visualViewport.width : window.innerWidth;
+    const docW = document.documentElement ? document.documentElement.clientWidth : vwRaw;
+    const viewportWidth = Math.min(vwRaw, docW);
+    const maxWidth = viewportWidth - 8;
+    const overflow = rect.width - maxWidth;
+
+    if (overflow <= 0.5) return;
+
+    const current = parseFloat(getComputedStyle(boardShellEl).width) || rect.width;
+    const next = Math.max(250, Math.floor(current - overflow - 2));
+    boardShellEl.style.setProperty('--board-runtime-width', `${next}px`);
+    if (pass < 4) scheduleFitVerification(pass + 1);
   }
 
   function showToast(message, duration = 1800) {
@@ -347,6 +375,8 @@
         boardEl.appendChild(square);
       }
     }
+
+    scheduleFitVerification();
   }
 
   function onSquareClick(squareName, piece) {
