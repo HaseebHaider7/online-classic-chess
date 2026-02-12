@@ -24,8 +24,8 @@
   const files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
 
   const boardEl = document.getElementById('board');
-  const rankLabelsEl = document.getElementById('rankLabels');
-  const fileLabelsEl = document.getElementById('fileLabels');
+  let rankLabelsEl = document.getElementById('rankLabels');
+  let fileLabelsEl = document.getElementById('fileLabels');
 
   const nameInput = document.getElementById('nameInput');
   const colorSelect = document.getElementById('colorSelect');
@@ -61,6 +61,26 @@
     rooms: [],
     viewSide: 'w'
   };
+
+  // Backward-compat fallback for older deployed HTML that lacks label containers.
+  if (boardEl && (!rankLabelsEl || !fileLabelsEl)) {
+    const boardShell = boardEl.closest('.board-shell');
+    const boardRow = boardEl.closest('.board-row');
+    if (boardShell && boardRow) {
+      if (!rankLabelsEl) {
+        rankLabelsEl = document.createElement('div');
+        rankLabelsEl.id = 'rankLabels';
+        rankLabelsEl.className = 'rank-labels';
+        boardRow.prepend(rankLabelsEl);
+      }
+      if (!fileLabelsEl) {
+        fileLabelsEl = document.createElement('div');
+        fileLabelsEl.id = 'fileLabels';
+        fileLabelsEl.className = 'file-labels';
+        boardShell.appendChild(fileLabelsEl);
+      }
+    }
+  }
 
   playAiBtn.addEventListener('click', () => {
     const name = nameInput.value.trim() || 'Guest';
@@ -221,6 +241,8 @@
   }
 
   function drawLabels() {
+    if (!rankLabelsEl || !fileLabelsEl) return;
+
     rankLabelsEl.innerHTML = '';
     fileLabelsEl.innerHTML = '';
 
@@ -240,6 +262,8 @@
   }
 
   function drawBoard() {
+    if (!boardEl) return;
+
     boardEl.innerHTML = '';
     const pieceBySquare = parseFenPieces(app.fen);
     const ranks = orientedRanks();
