@@ -192,7 +192,7 @@
     const docWidth = document.documentElement ? document.documentElement.clientWidth : viewportWidth;
     const wrapWidth = boardWrapEl ? boardWrapEl.getBoundingClientRect().width : viewportWidth;
     const portrait = window.matchMedia && window.matchMedia('(orientation: portrait)').matches;
-    const safety = portrait ? 14 : 4;
+    const safety = portrait ? 26 : 12;
     const boardSize = Math.floor(Math.min(viewportWidth, docWidth, wrapWidth) - safety);
     boardShellEl.style.setProperty('--board-size', `${Math.max(220, Math.min(860, boardSize))}px`);
   }
